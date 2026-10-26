@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the game on the iPad.
 // Change VERSION whenever you update any file, so iPads pick up the new version.
-const VERSION = 'fishing-v6';
+const VERSION = 'fishing-v9';
 const FILES = [
   "./",
   "index.html",
@@ -60,7 +60,10 @@ const FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' = always fetch fresh copies from the website, never the browser's old ones
+  event.waitUntil(caches.open(VERSION)
+    .then(cache => cache.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {

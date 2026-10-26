@@ -98,19 +98,31 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
+let screenW = 0, screenH = 0;
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  const w = window.innerWidth, h = window.innerHeight;
+  // the part of the screen you can actually see (Safari's toolbars excluded)
+  const vv = window.visualViewport;
+  const w = Math.round(vv ? vv.width : window.innerWidth);
+  const h = Math.round(vv ? vv.height : window.innerHeight);
+  screenW = w; screenH = h;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // 1 unit = screen height, but keep at least x = +/-0.73 visible (the play area is +/-0.6)
-  unit = Math.min(h, w / 1.46);
-  cx = w / 2;
-  cy = h / 2;
+  // game area = the safe part of the screen (clear of the home bar and rounded corners)
+  const r = document.getElementById('safe').getBoundingClientRect();
+  const sl = Math.max(0, r.left), st = Math.max(0, r.top);
+  const sw = Math.min(w, r.right) - sl, sh = Math.min(h, r.bottom) - st;
+  // 1 unit = safe height, but keep at least x = +/-0.73 visible (the play area is +/-0.6)
+  unit = Math.min(sh, sw / 1.46);
+  cx = sl + sw / 2;
+  cy = st + sh / 2;
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 
 function drawImg(name, x, y, w, h, alpha = 1) {
   const im = IMG[name];
@@ -150,10 +162,18 @@ function drawText(text, x, y, height, colour = 'white', bold = false, wrapWidth 
   const top = y + gap * (lines.length - 1) / 2;
   lines.forEach((ln, i) => ctx.fillText(ln, cx + x * unit, cy - (top - i * gap) * unit));
 }
+// a full-screen picture (16:9) scaled to cover the whole screen, edge to edge
+function drawCover(name) {
+  const im = IMG[name];
+  if (!im) return;
+  const s = Math.max(screenW / im.width, screenH / im.height);
+  const w = im.width * s, h = im.height * s;
+  ctx.drawImage(im, (screenW - w) / 2, (screenH - h) / 2, w, h);
+}
 function drawPond() {
   ctx.fillStyle = WINDOW_BG;
-  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-  drawImg('pond', 0, 0, 1.778, 1);
+  ctx.fillRect(0, 0, screenW, screenH);
+  drawCover('pond');
 }
 
 // ---------------------------------------------------------------- screens
@@ -167,7 +187,7 @@ function screenTime() { return (performance.now() - screenStart) / 1000; }
 
 function frame() {
   if (screen && !paused) {
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.clearRect(0, 0, screenW, screenH);
     screen.draw(screenTime());
   }
   requestAnimationFrame(frame);
@@ -221,7 +241,7 @@ function newGame(participant, session) {
 function baseRow() {
   return {
     participant: S.participant, session: S.session, date: S.date, expName: EXP_NAME,
-    screenW: window.innerWidth, screenH: window.innerHeight, unitPx: Math.round(unit * 100) / 100,
+    screenW, screenH, unitPx: Math.round(unit * 100) / 100,
   };
 }
 
@@ -232,7 +252,7 @@ function startGame() {
 
 function howPage(i) {
   setScreen({
-    draw() { drawPond(); drawImg('how_step' + (i + 1), 0, 0, 1.778, 1); },
+    draw() { drawCover('how_step' + (i + 1)); },   // whole page (with its own pond) fills the screen
     tap(x, y, t) {
       if (t < 0.5) return;
       if (i < 3) howPage(i + 1); else nextTrial();
@@ -571,7 +591,7 @@ function show(id) { ['startScreen', 'dataScreen', 'pauseScreen', 'endScreen'].fo
 
 function showStart() {
   S = null; screen = null; paused = false;
-  ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  ctx.clearRect(0, 0, screenW, screenH);
   drawPond();
   $('pid').value = '';
   $('startErr').textContent = '';
@@ -650,7 +670,7 @@ $('quitBtn').addEventListener('click', () => {
 
 function showEnd() {
   screen = null;
-  ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  ctx.clearRect(0, 0, screenW, screenH);
   drawPond();
   const s = loadStore()[S.id];
   $('endInfo').textContent = `Participant ${S.participant} · ${s ? s.nTrials : 0} casts saved${S.complete ? '' : ' (game ended early)'}.`;
