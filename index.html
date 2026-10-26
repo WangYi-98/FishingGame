@@ -82,7 +82,7 @@
       <button class="secondary" id="dataBtn">Saved data</button>
     </div>
     <p class="small" id="offlineNote"></p>
-    <p class="small" id="diag" style="font-family: monospace; font-size: 11px;"></p>
+    <p class="small" id="diag" style="font-family: monospace; font-size: 11px; display: none;"></p>   <!-- screen measurements: remove display:none to show -->
   </div>
 </div>
 
@@ -108,19 +108,6 @@
     <div class="row">
       <button id="resumeBtn">Resume</button>
       <button class="danger" id="quitBtn">End game</button>
-    </div>
-  </div>
-</div>
-
-<!-- End -->
-<div class="overlay" id="endScreen">
-  <div class="card">
-    <h2>All done. Thank you!</h2>
-    <p>Please hand the iPad back to the researcher.</p>
-    <p class="small" id="endInfo"></p>
-    <div class="row">
-      <button id="endExportBtn">Export this game's data</button>
-      <button class="secondary" id="newBtn">New participant</button>
     </div>
   </div>
 </div>

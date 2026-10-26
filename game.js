@@ -98,7 +98,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v15';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -216,7 +216,11 @@ canvas.addEventListener('pointerdown', e => {
     const now = performance.now();
     cornerTaps = cornerTaps.filter(t => now - t < 3000);
     cornerTaps.push(now);
-    if (cornerTaps.length >= 5 && screen) { cornerTaps = []; openPause(); }
+    if (cornerTaps.length >= 5 && screen) {
+      cornerTaps = [];
+      if (screen.isThanks) showStart();   // game over: back to the researcher start screen
+      else openPause();
+    }
     return;   // corner taps never count as game taps
   }
   if (!screen || paused || !screen.tap) return;
@@ -602,7 +606,7 @@ function sessionFilename(s) { return `${s.participant}_${EXP_NAME}_${s.date}.csv
 
 // ---------------------------------------------------------------- researcher screens
 const $ = id => document.getElementById(id);
-function show(id) { ['startScreen', 'dataScreen', 'pauseScreen', 'endScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
+function show(id) { ['startScreen', 'dataScreen', 'pauseScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
 
 function showStart() {
   S = null; screen = null; paused = false;
@@ -683,19 +687,27 @@ $('quitBtn').addEventListener('click', () => {
   showEnd();
 });
 
+// Thank-you screen: no buttons. The data is already saved on the iPad.
+// Researcher: tap the top-left corner 5 times to go back to the start screen.
 function showEnd() {
-  screen = null;
-  ctx.clearRect(0, 0, screenW, screenH);
-  drawPond();
-  const s = loadStore()[S.id];
-  $('endInfo').textContent = `Participant ${S.participant} · ${s ? s.nTrials : 0} casts saved${S.complete ? '' : ' (game ended early)'}.`;
-  show('endScreen');
+  saveSession();
+  show(null);
+  setScreen({
+    isThanks: true,
+    draw() {
+      drawPond();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.93)';
+      ctx.strokeStyle = DARK;
+      ctx.lineWidth = Math.max(2, unit * 0.004);
+      const w = 0.9 * unit, h = 0.36 * unit;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 0.04 * unit); else ctx.rect(cx - w / 2, cy - h / 2, w, h);
+      ctx.fill(); ctx.stroke();
+      drawText('Thank you for playing!', 0, 0.06, 0.065, DARK, true);
+      drawText('Please hand the iPad back to the researcher.', 0, -0.06, 0.035, DARK);
+    },
+  });
 }
-$('endExportBtn').addEventListener('click', () => {
-  const s = loadStore()[S.id];
-  if (s) exportCSV(sessionFilename(s), toCSV(s.rows));
-});
-$('newBtn').addEventListener('click', showStart);
 
 // ---------------------------------------------------------------- start up
 resize();

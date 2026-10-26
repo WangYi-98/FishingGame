@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the game on the iPad.
 // Change VERSION whenever you update any file, so iPads pick up the new version.
-const VERSION = 'fishing-v13';
+const VERSION = 'fishing-v15';
 const FILES = [
   "./",
   "index.html",
