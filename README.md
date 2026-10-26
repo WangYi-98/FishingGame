@@ -29,7 +29,8 @@ From then on, tap the icon to play. No internet is needed.
 1. Tap the icon. Enter the **Participant ID** (and session), then tap **Start game**. Hand over the iPad in landscape.
 2. The participant plays: How to play (4 pages) → 10 practice casts → pick a player → 10 rounds of 10 casts, each followed by the round catch and leaderboard → final ranking.
 3. At the end, the participant sees a "Thank you for playing!" screen. The data is already saved in the game.
-4. Tap **Quit**. The participant's CSV downloads to **Files → Downloads** (set Settings → Safari → Downloads → On My iPad; the iPad may ask "Download?" first). The start screen then opens for the next participant. If the download doesn't happen, export it from **Saved data** instead — the data is always kept in the game.
+4. Tap **Quit** (or tap the top-left corner 5 times). The start screen opens for the next participant. Nothing else to do: the data is already saved in the game.
+5. **Saving to Files (in batches):** whenever convenient (e.g. end of the day), on the start screen tap **Save new data to Files (n)** → **Save to Files** → **Save**. Every participant not yet saved is saved as their own CSV in one go, and is then marked as saved. When everything is saved the button shows **All data saved to Files ✓**.
 
 Games ended before the first cast are not saved.
 

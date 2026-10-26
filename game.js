@@ -98,7 +98,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -603,7 +603,7 @@ async function exportCSV(filename, csvText) {
   const file = new File([csvText], filename, { type: 'text/csv' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: filename });
+      await navigator.share({ files: [file] });   // no title: iPadOS would save it as an extra text file
       return 'shared';
     } catch (e) {
       return (e && e.name === 'AbortError') ? 'cancelled' : 'blocked';
@@ -640,6 +640,7 @@ function sessionFilename(s) { return `${s.participant}_${EXP_NAME}_${s.date}.csv
 const $ = id => document.getElementById(id);
 function show(id) { ['startScreen', 'dataScreen', 'pauseScreen', 'saveScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
 $('saveRetryBtn').addEventListener('click', () => saveFinishedGame());
+$('saveNewBtn').addEventListener('click', saveNewData);
 $('saveSkipBtn').addEventListener('click', showStart);
 
 function showStart() {
@@ -649,9 +650,31 @@ function showStart() {
   drawPond();
   $('pid').value = '';
   $('startErr').textContent = '';
-  const n = Object.keys(loadStore()).length;
+  const store = loadStore();
+  const n = Object.keys(store).length;
   $('dataBtn').textContent = 'Saved data (' + n + ')';
+  const unsaved = Object.values(store).filter(s => !s.exported).length;
+  $('saveNewBtn').textContent = unsaved ? `Save new data to Files (${unsaved})` : 'All data saved to Files ✓';
+  $('saveNewBtn').disabled = !unsaved;
   show('startScreen');
+}
+
+// Save every game not yet saved, as separate CSV files, in one save sheet.
+async function saveNewData() {
+  const store = loadStore();
+  const ids = Object.keys(store).filter(id => !store[id].exported).sort();
+  if (!ids.length) return;
+  const files = ids.map(id => new File([toCSV(store[id].rows)], sessionFilename(store[id]), { type: 'text/csv' }));
+  let ok = false;
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files }); ok = true; }   // no title (see exportCSV)
+    catch (e) { ok = false; }                              // sheet closed: nothing marked, try again later
+  } else {
+    ids.forEach((id, i) => setTimeout(() => downloadCSV(sessionFilename(store[id]), toCSV(store[id].rows)), i * 300));   // computers: one download each
+    ok = true;
+  }
+  if (ok) ids.forEach(markExported);
+  showStart();
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -761,13 +784,11 @@ function downloadCSV(filename, csvText) {
 }
 // (On the iPad, a plain download from a Home Screen app only opens a preview page, so Quit
 //  opens the save sheet instead: Save to Files -> Save. Computers just download the file.)
-async function finishGame() {
+// Quit: the data is already saved in the game, so go straight back to the start screen.
+// (Saving to Files is done in batches from the start screen: "Save new data".)
+function finishGame() {
   $('quitWrap').style.display = 'none';
-  const s = S && loadStore()[S.id];
-  if (!s) { showStart(); return; }
-  const result = await exportCSV(sessionFilename(s), toCSV(s.rows));
-  if (result === 'shared' || result === 'downloaded') { markExported(S.id); showStart(); }
-  else showSavePrompt(s);   // sheet closed without saving: offer Save to Files again or Next participant
+  showStart();
 }
 $('finishBtn').addEventListener('click', finishGame);
 
