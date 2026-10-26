@@ -30,7 +30,7 @@ From then on, tap the icon to play. No internet is needed.
 2. The participant plays: How to play (4 pages) → 10 practice casts → pick a player → 10 rounds of 10 casts, each followed by the round catch and leaderboard → final ranking.
 3. At the end, the participant sees a "Thank you for playing!" screen. The data is already saved in the game.
 4. Tap **Quit** (or tap the top-left corner 5 times). The start screen opens for the next participant. Nothing else to do: the data is already saved in the game.
-5. **Saving to Files (in batches):** whenever convenient (e.g. end of the day), on the start screen tap **Save new data to Files (n)** → **Save to Files** → **Save**. Every participant not yet saved is saved as their own CSV in one go, and is then marked as saved. When everything is saved the button shows **All data saved to Files ✓**.
+5. **Saving to Files:** whenever convenient (e.g. end of the day), on the start screen tap **Save data (n)** → **Save to Files** → **Save**. Every game in the game is saved as its own CSV. The game then asks you to check the files are in your folder; tap **OK** to remove them from the game (or **Cancel** to keep them for now). When nothing is left, the button shows **No data to save**.
 
 Games ended before the first cast are not saved.
 
@@ -38,11 +38,9 @@ Games ended before the first cast are not saved.
 
 ## 4. Data
 
-- Each game is saved on the iPad **after every cast**, so nothing is lost if the app is closed.
-- To get the data off the iPad: start screen → **Saved data** → **Export** (one game) or **Export all**. Export opens the iPad share sheet: choose **Save to Files**, AirDrop, email, etc. Files are named `participant_FishingGame_date.csv`.
-- **Saved data** on the start screen lists every game on this iPad, with Export per game, **Export all** (one combined CSV) and **Delete all**.
-- The data saved inside the Home Screen app is separate from Safari's, so always export from the app.
-- Export regularly. Data is stored in the app's browser storage, and deleting the app removes it.
+- Each game is saved inside the game on the iPad **after every cast**, so nothing is lost if the app is closed.
+- **Save data** (start screen) saves all games to the Files app (one CSV per participant, named `participant_FishingGame_date.csv`) and then, after your OK, removes them from the game.
+- Data inside the game is deleted if the Home Screen icon is removed — save data before removing or reinstalling the game.
 
 The columns match the PsychoPy data: `trialNum, roundNum, practice, trialID, priorCond, likeCond, inRing, splash1X…splash5Y, splashMeanX/Y, realX, realY, respX, respY, rt, respDist, respDistPx, fishLevel, totalPoints, fishImage, playerPicked, lbRank, lbYouScore, lbBest, lbAverage, lbWorst`. A final row holds `finalRank, finalTotalYou, finalTotalBest, finalTotalAvg, finalTotalWorst`. `screenW, screenH, unitPx` record the screen size (unitPx = pixels per height unit).
 

@@ -103,7 +103,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -658,28 +658,38 @@ function showStart() {
   $('startErr').textContent = '';
   const store = loadStore();
   const n = Object.keys(store).length;
-  $('dataBtn').textContent = 'Saved data (' + n + ')';
-  const unsaved = Object.values(store).filter(s => !s.exported).length;
-  $('saveNewBtn').textContent = unsaved ? `Save new data to Files (${unsaved})` : 'All data saved to Files ✓';
-  $('saveNewBtn').disabled = !unsaved;
+  $('saveNewBtn').textContent = n ? `Save data (${n})` : 'No data to save';
+  $('saveNewBtn').disabled = !n;
   show('startScreen');
 }
 
 // Save every game not yet saved, as separate CSV files, in one save sheet.
+// Save data: every game in the game's storage, each as its own CSV, in one save sheet.
+// After saving, the games are removed from the game's storage (after a check).
 async function saveNewData() {
   const store = loadStore();
-  const ids = Object.keys(store).filter(id => !store[id].exported).sort();
+  const ids = Object.keys(store).sort();
   if (!ids.length) return;
   const files = ids.map(id => new File([toCSV(store[id].rows)], sessionFilename(store[id]), { type: 'text/csv' }));
   let ok = false;
   if (navigator.canShare && navigator.canShare({ files })) {
     try { await navigator.share({ files }); ok = true; }   // no title (see exportCSV)
-    catch (e) { ok = false; }                              // sheet closed: nothing marked, try again later
+    catch (e) { ok = false; }                              // sheet closed: nothing changes
   } else {
     ids.forEach((id, i) => setTimeout(() => downloadCSV(sessionFilename(store[id]), toCSV(store[id].rows)), i * 300));   // computers: one download each
     ok = true;
   }
-  if (ok) ids.forEach(markExported);
+  if (ok) {
+    ids.forEach(markExported);
+    const n = ids.length;
+    if (confirm(`Check that the ${n} file${n > 1 ? 's are' : ' is'} in your Files folder, then tap OK to remove ${n > 1 ? 'them' : 'it'} from the game.\n\nTap Cancel to keep ${n > 1 ? 'them' : 'it'} in the game for now.`)) {
+      try {
+        const s2 = loadStore();
+        ids.forEach(id => delete s2[id]);
+        localStorage.setItem(STORE_KEY, JSON.stringify(s2));
+      } catch (e) {}
+    }
+  }
   showStart();
 }
 
