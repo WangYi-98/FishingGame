@@ -98,7 +98,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -111,20 +111,12 @@ function resize() {
   const px = v => parseFloat(v) || 0;
   const st = px(cs.paddingTop), sb = px(cs.paddingBottom), sl = px(cs.paddingLeft), sr = px(cs.paddingRight);
   const lvh = document.getElementById('lvh').getBoundingClientRect().height;
+  // The game sits below the iPad's status bar (status-bar style "black"), so the
+  // reported size is the real drawable area. (Drawing under the status bar made iPadOS
+  // cut off the bottom of the game.)
   const w = Math.round(Math.max(window.innerWidth, vv ? vv.width : 0));
-  let h = Math.round(Math.max(window.innerHeight, vv ? vv.height : 0, document.documentElement.clientHeight, lvh));
-  // From the Home Screen, iPadOS reports the screen as shorter than it really is (by the status bar),
-  // which left a strip at the bottom. Add the status bar back ...
-  if (homeScreen) h = Math.max(h, Math.round(window.innerHeight + st));
-  // ... and use the real screen size when we can, never more than it
+  const h = Math.round(Math.max(window.innerHeight, vv ? vv.height : 0));
   const dev = window.screen;   // (plain 'screen' is the game's current screen)
-  if (homeScreen && dev.width && dev.height) {
-    const long = Math.max(dev.width, dev.height), short = Math.min(dev.width, dev.height);
-    const landscape = w >= h;
-    const fullW = landscape ? long : short, fullH = landscape ? short : long;
-    if (Math.abs(w - fullW) <= 40) h = Math.max(h, fullH);
-    if (h > fullH) h = fullH;
-  }
   screenW = w; screenH = h;
   document.documentElement.style.setProperty('--appH', h + 'px');   // screens on top (start, end) use the same height
   canvas.style.width = w + 'px';
