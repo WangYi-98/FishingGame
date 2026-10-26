@@ -98,39 +98,50 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-let screenW = 0, screenH = 0;
+const APP_VERSION = 'v12';
+let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
   window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches;
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   const vv = window.visualViewport;
-  let w = Math.round(Math.max(window.innerWidth, vv ? vv.width : 0));
-  let h = Math.round(Math.max(window.innerHeight, vv ? vv.height : 0));
-  // From the Home Screen, iPadOS reports the screen as shorter than it is (by the status bar),
-  // which left a strip at the bottom. Use the real screen size instead.
+  // safe margins (status bar, home bar, rounded corners)
+  const cs = getComputedStyle(document.getElementById('safe'));
+  const px = v => parseFloat(v) || 0;
+  const st = px(cs.paddingTop), sb = px(cs.paddingBottom), sl = px(cs.paddingLeft), sr = px(cs.paddingRight);
+  const lvh = document.getElementById('lvh').getBoundingClientRect().height;
+  const w = Math.round(Math.max(window.innerWidth, vv ? vv.width : 0));
+  let h = Math.round(Math.max(window.innerHeight, vv ? vv.height : 0, document.documentElement.clientHeight, lvh));
+  // From the Home Screen, iPadOS reports the screen as shorter than it really is (by the status bar),
+  // which left a strip at the bottom. Add the status bar back ...
+  if (homeScreen) h = Math.max(h, Math.round(window.innerHeight + st));
+  // ... and use the real screen size when we can, never more than it
   const dev = window.screen;   // (plain 'screen' is the game's current screen)
   if (homeScreen && dev.width && dev.height) {
     const long = Math.max(dev.width, dev.height), short = Math.min(dev.width, dev.height);
     const landscape = w >= h;
     const fullW = landscape ? long : short, fullH = landscape ? short : long;
-    if (Math.abs(w - fullW) <= 2) h = Math.max(h, fullH);
+    if (Math.abs(w - fullW) <= 40) h = Math.max(h, fullH);
+    if (h > fullH) h = fullH;
   }
   screenW = w; screenH = h;
+  document.documentElement.style.setProperty('--appH', h + 'px');   // screens on top (start, end) use the same height
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // game area = the screen minus the safe margins (status bar, home bar, rounded corners)
-  const cs = getComputedStyle(document.getElementById('safe'));
-  const px = v => parseFloat(v) || 0;
-  const st = px(cs.paddingTop), sb = px(cs.paddingBottom), sl = px(cs.paddingLeft), sr = px(cs.paddingRight);
+  // game area = the screen minus the safe margins
   const sw = w - sl - sr, sh = h - st - sb;
   // 1 unit = safe height, but keep at least x = +/-0.73 visible (the play area is +/-0.6)
   unit = Math.min(sh, sw / 1.46);
   cx = sl + sw / 2;
   cy = st + sh / 2;
+  diagText = `${APP_VERSION} | inner ${window.innerWidth}x${window.innerHeight} | vv ${vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) : '-'}` +
+    ` | doc ${document.documentElement.clientHeight} | lvh ${Math.round(lvh)} | screen ${dev.width}x${dev.height}` +
+    ` | home ${homeScreen} | safe ${st}/${sr}/${sb}/${sl} | used ${w}x${h}`;
+  const d = document.getElementById('diag'); if (d) d.textContent = diagText;
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
