@@ -103,7 +103,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -747,7 +747,6 @@ $('resumeBtn').addEventListener('click', () => {
   show(null);
 });
 $('quitBtn').addEventListener('click', () => {
-  if (!confirm('End this game now? The data so far stays saved.')) return;
   paused = false;
   screen = null;
   saveSession();
