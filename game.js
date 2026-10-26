@@ -5,6 +5,11 @@
  * from the PsychoPy experiment.
  */
 'use strict';
+// If anything goes wrong while starting, show it instead of a never-ending "Loading…"
+window.addEventListener('error', e => {
+  const l = document.getElementById('loading');
+  if (l && l.style.display !== 'none') l.textContent = 'Could not start the game (' + e.message + '). Close the app and open it again on wifi.';
+});
 
 // ---------------------------------------------------------------- settings
 const EXP_NAME = 'FishingGame';
@@ -98,7 +103,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -637,7 +642,8 @@ function showSavePrompt(s) {
 function sessionFilename(s) { return `${s.participant}_${EXP_NAME}_${s.date}.csv`; }
 
 // ---------------------------------------------------------------- researcher screens
-const $ = id => document.getElementById(id);
+// Missing page parts (e.g. an older index.html still cached) must not stop the game from loading
+const $ = id => document.getElementById(id) || document.createElement('div');
 function show(id) { ['startScreen', 'dataScreen', 'pauseScreen', 'saveScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
 $('saveRetryBtn').addEventListener('click', () => saveFinishedGame());
 $('saveNewBtn').addEventListener('click', saveNewData);
