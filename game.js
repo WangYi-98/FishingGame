@@ -98,7 +98,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -759,11 +759,15 @@ function downloadCSV(filename, csvText) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-function finishGame() {
+// (On the iPad, a plain download from a Home Screen app only opens a preview page, so Quit
+//  opens the save sheet instead: Save to Files -> Save. Computers just download the file.)
+async function finishGame() {
   $('quitWrap').style.display = 'none';
   const s = S && loadStore()[S.id];
-  if (s) { downloadCSV(sessionFilename(s), toCSV(s.rows)); markExported(S.id); }
-  setTimeout(showStart, 800);   // a moment for the iPad's download question to appear
+  if (!s) { showStart(); return; }
+  const result = await exportCSV(sessionFilename(s), toCSV(s.rows));
+  if (result === 'shared' || result === 'downloaded') { markExported(S.id); showStart(); }
+  else showSavePrompt(s);   // sheet closed without saving: offer Save to Files again or Next participant
 }
 $('finishBtn').addEventListener('click', finishGame);
 
