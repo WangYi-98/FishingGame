@@ -99,22 +99,34 @@ const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
 let screenW = 0, screenH = 0;
+// true when opened from the Home Screen icon
+const homeScreen = window.navigator.standalone === true ||
+  window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches;
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  // the part of the screen you can actually see (Safari's toolbars excluded)
   const vv = window.visualViewport;
-  const w = Math.round(vv ? vv.width : window.innerWidth);
-  const h = Math.round(vv ? vv.height : window.innerHeight);
+  let w = Math.round(Math.max(window.innerWidth, vv ? vv.width : 0));
+  let h = Math.round(Math.max(window.innerHeight, vv ? vv.height : 0));
+  // From the Home Screen, iPadOS reports the screen as shorter than it is (by the status bar),
+  // which left a strip at the bottom. Use the real screen size instead.
+  const dev = window.screen;   // (plain 'screen' is the game's current screen)
+  if (homeScreen && dev.width && dev.height) {
+    const long = Math.max(dev.width, dev.height), short = Math.min(dev.width, dev.height);
+    const landscape = w >= h;
+    const fullW = landscape ? long : short, fullH = landscape ? short : long;
+    if (Math.abs(w - fullW) <= 2) h = Math.max(h, fullH);
+  }
   screenW = w; screenH = h;
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // game area = the safe part of the screen (clear of the home bar and rounded corners)
-  const r = document.getElementById('safe').getBoundingClientRect();
-  const sl = Math.max(0, r.left), st = Math.max(0, r.top);
-  const sw = Math.min(w, r.right) - sl, sh = Math.min(h, r.bottom) - st;
+  // game area = the screen minus the safe margins (status bar, home bar, rounded corners)
+  const cs = getComputedStyle(document.getElementById('safe'));
+  const px = v => parseFloat(v) || 0;
+  const st = px(cs.paddingTop), sb = px(cs.paddingBottom), sl = px(cs.paddingLeft), sr = px(cs.paddingRight);
+  const sw = w - sl - sr, sh = h - st - sb;
   // 1 unit = safe height, but keep at least x = +/-0.73 visible (the play area is +/-0.6)
   unit = Math.min(sh, sw / 1.46);
   cx = sl + sw / 2;
