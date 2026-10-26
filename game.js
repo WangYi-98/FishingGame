@@ -98,7 +98,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v17';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -209,7 +209,7 @@ function frame() {
 }
 
 // researcher pause: 5 quick taps in the top-left corner
-let cornerTaps = [];
+let cornerTaps = [], pendingSave = false;
 canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (e.clientX < 60 && e.clientY < 60) {
@@ -218,7 +218,7 @@ canvas.addEventListener('pointerdown', e => {
     cornerTaps.push(now);
     if (cornerTaps.length >= 5 && screen) {
       cornerTaps = [];
-      if (screen.isThanks) showStart();   // game over: back to the researcher start screen
+      if (screen.isThanks) finishGame();   // game over: same as the Quit button
       else openPause();
     }
     return;   // corner taps never count as game taps
@@ -228,6 +228,12 @@ canvas.addEventListener('pointerdown', e => {
   const y = (cy - e.clientY) / unit;
   screen.tap(x, y, screenTime());
 }, { passive: false });
+// The iPad only allows the save sheet to open from a finished tap, so it opens when the finger lifts.
+canvas.addEventListener('pointerup', () => {
+  if (!pendingSave) return;
+  pendingSave = false;
+  saveFinishedGame();
+});
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
 
@@ -554,13 +560,18 @@ function finalRanking() {
 // ---------------------------------------------------------------- data storage
 const STORE_KEY = 'fishingGame.sessions';
 function loadStore() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+  try {
+    const store = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+    for (const id of Object.keys(store)) if (!store[id].rows || !store[id].rows.length) delete store[id];   // games ended before the first cast
+    return store;
+  } catch (e) { return {}; }
 }
 function saveSession() {
-  if (!S) return;
+  if (!S || !S.rows.length) return;   // nothing to keep until the first cast
   try {
     const store = loadStore();
-    store[S.id] = { participant: S.participant, session: S.session, date: S.date, complete: S.complete,
+    const was = store[S.id] || {};
+    store[S.id] = { participant: S.participant, session: S.session, date: S.date, complete: S.complete, exported: !!was.exported,
                     nTrials: S.rows.filter(r => r.trialNum).length, rows: S.rows };
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
   } catch (e) {
@@ -586,29 +597,53 @@ function toCSV(rows) {
   };
   return [COLUMNS.join(',')].concat(rows.map(r => COLUMNS.map(c => esc(r[c])).join(','))).join('\n') + '\n';
 }
+// Returns 'shared' (iPad save sheet used), 'downloaded' (computer browsers),
+// 'cancelled' (sheet closed without saving) or 'blocked' (the iPad refused to open the sheet).
 async function exportCSV(filename, csvText) {
   const file = new File([csvText], filename, { type: 'text/csv' });
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
       await navigator.share({ files: [file], title: filename });
-      return;
+      return 'shared';
+    } catch (e) {
+      return (e && e.name === 'AbortError') ? 'cancelled' : 'blocked';
     }
-  } catch (e) {
-    if (e && e.name === 'AbortError') return;   // the researcher closed the share sheet
   }
   const url = URL.createObjectURL(file);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return 'downloaded';
+}
+function markExported(id) {
+  try {
+    const store = loadStore();
+    if (store[id]) { store[id].exported = true; localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  } catch (e) {}
+}
+// After a game: open the save sheet with this participant's CSV, then go to the start screen.
+async function saveFinishedGame() {
+  const s = S && loadStore()[S.id];
+  if (!s) { showStart(); return; }
+  const result = await exportCSV(sessionFilename(s), toCSV(s.rows));
+  if (result === 'shared' || result === 'downloaded') { markExported(S.id); showStart(); }
+  else showSavePrompt(s);
+}
+function showSavePrompt(s) {
+  $('saveInfo').textContent = `${s.participant}'s data is kept in the game but has not been saved to Files yet.`;
+  show('saveScreen');
 }
 function sessionFilename(s) { return `${s.participant}_${EXP_NAME}_${s.date}.csv`; }
 
 // ---------------------------------------------------------------- researcher screens
 const $ = id => document.getElementById(id);
-function show(id) { ['startScreen', 'dataScreen', 'pauseScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
+function show(id) { ['startScreen', 'dataScreen', 'pauseScreen', 'saveScreen'].forEach(o => $(o).classList.toggle('show', o === id)); }
+$('saveRetryBtn').addEventListener('click', () => saveFinishedGame());
+$('saveSkipBtn').addEventListener('click', showStart);
 
 function showStart() {
+  $('quitWrap').style.display = 'none';
   S = null; screen = null; paused = false;
   ctx.clearRect(0, 0, screenW, screenH);
   drawPond();
@@ -641,14 +676,17 @@ function renderSessions() {
     const li = document.createElement('li');
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.innerHTML = `<b></b><span class="tag ${s.complete ? 'done' : 'part'}">${s.complete ? 'complete' : 'unfinished'}</span><br>
+    meta.innerHTML = `<b></b><span class="tag ${s.complete ? 'done' : 'part'}">${s.complete ? 'complete' : 'unfinished'}</span>${s.exported ? '<span class="tag done">saved to Files</span>' : ''}<br>
       <span class="small"></span>`;
     meta.querySelector('b').textContent = s.participant;
     meta.querySelector('.small').textContent = `${s.date.replace('_', ' ')} · session ${s.session} · ${s.nTrials} casts`;
     const btn = document.createElement('button');
     btn.className = 'secondary';
     btn.textContent = 'Export';
-    btn.addEventListener('click', () => exportCSV(sessionFilename(s), toCSV(s.rows)));
+    btn.addEventListener('click', async () => {
+      const r = await exportCSV(sessionFilename(s), toCSV(s.rows));
+      if (r === 'shared' || r === 'downloaded') { markExported(id); renderSessions(); }
+    });
     li.append(meta, btn);
     list.appendChild(li);
   });
@@ -707,7 +745,27 @@ function showEnd() {
       drawText('Please hand the iPad back to the researcher.', 0, -0.06, 0.035, DARK);
     },
   });
+  // Quit button just below the panel
+  const q = $('quitWrap');
+  q.style.top = Math.round(cy + 0.24 * unit) + 'px';
+  q.style.display = 'flex';
 }
+
+// Quit: download this participant's CSV (iPad: Files -> Downloads), then back to the start screen.
+function downloadCSV(filename, csvText) {
+  const url = URL.createObjectURL(new Blob([csvText], { type: 'text/csv' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function finishGame() {
+  $('quitWrap').style.display = 'none';
+  const s = S && loadStore()[S.id];
+  if (s) { downloadCSV(sessionFilename(s), toCSV(s.rows)); markExported(S.id); }
+  setTimeout(showStart, 800);   // a moment for the iPad's download question to appear
+}
+$('finishBtn').addEventListener('click', finishGame);
 
 // ---------------------------------------------------------------- start up
 resize();

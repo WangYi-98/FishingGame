@@ -28,14 +28,17 @@ From then on, tap the icon to play. No internet is needed.
 
 1. Tap the icon. Enter the **Participant ID** (and session), then tap **Start game**. Hand over the iPad in landscape.
 2. The participant plays: How to play (4 pages) → 10 practice casts → pick a player → 10 rounds of 10 casts, each followed by the round catch and leaderboard → final ranking.
-3. At the end, the participant sees "All done". Tap **Export this game's data**.
+3. At the end, the participant sees a "Thank you for playing!" screen. The data is already saved in the game.
+4. Tap **Quit**. The participant's CSV downloads to **Files → Downloads** (set Settings → Safari → Downloads → On My iPad; the iPad may ask "Download?" first). The start screen then opens for the next participant. If the download doesn't happen, export it from **Saved data** instead — the data is always kept in the game.
 
-**Pausing or stopping early (researcher):** tap the **top-left corner 5 times quickly**. Choose Resume, or End game (the data so far stays saved).
+Games ended before the first cast are not saved.
+
+**Pausing or stopping early (researcher):** during a game, tap the **top-left corner 5 times quickly**. Choose Resume, or End game (the data so far stays saved).
 
 ## 4. Data
 
 - Each game is saved on the iPad **after every cast**, so nothing is lost if the app is closed.
-- **Export** opens the iPad share sheet: choose **Save to Files**, AirDrop, email, etc. Files are named `participant_FishingGame_date.csv`.
+- To get the data off the iPad: start screen → **Saved data** → **Export** (one game) or **Export all**. Export opens the iPad share sheet: choose **Save to Files**, AirDrop, email, etc. Files are named `participant_FishingGame_date.csv`.
 - **Saved data** on the start screen lists every game on this iPad, with Export per game, **Export all** (one combined CSV) and **Delete all**.
 - The data saved inside the Home Screen app is separate from Safari's, so always export from the app.
 - Export regularly. Data is stored in the app's browser storage, and deleting the app removes it.

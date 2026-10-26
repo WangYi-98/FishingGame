@@ -100,6 +100,24 @@
   </div>
 </div>
 
+<!-- Quit button on the thank-you screen: downloads the CSV to Files -> Downloads -->
+<div id="quitWrap" style="position: fixed; left: 0; right: 0; display: none; justify-content: center; z-index: 5;">
+  <button id="finishBtn" style="font-size: 24px; padding: 14px 48px;">Quit</button>
+</div>
+
+<!-- Shown only if the save sheet was closed without saving -->
+<div class="overlay" id="saveScreen">
+  <div class="card">
+    <h2>Not saved to Files yet</h2>
+    <p id="saveInfo"></p>
+    <div class="row">
+      <button id="saveRetryBtn">Save to Files</button>
+      <button class="secondary" id="saveSkipBtn">Next participant</button>
+    </div>
+    <p class="small">You can also save it later: start screen → Saved data → Export.</p>
+  </div>
+</div>
+
 <!-- Pause menu (researcher: tap the top-left corner 5 times) -->
 <div class="overlay" id="pauseScreen">
   <div class="card">
