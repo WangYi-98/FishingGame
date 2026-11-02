@@ -103,7 +103,7 @@ function loadImages() {
 // after a tap, so the sound system is switched on by the "Start game" tap.
 const SOUND_ON = true;          // set to false to play the game silently
 const SOUND_VOLUME = 0.8;
-const SOUND_NAMES = ['splash', 'cast', 'catch_1', 'catch_2', 'catch_3', 'catch_4', 'basket', 'pop', 'leaderboard', 'fanfare'];
+const SOUND_NAMES = ['splash', 'catch_1', 'catch_2', 'catch_3', 'catch_4', 'basket', 'pop', 'leaderboard', 'fanfare'];
 const SND = {};
 let audio = null, audioGain = null;
 function unlockAudio() {
@@ -148,7 +148,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v28';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -436,7 +436,6 @@ function trial() {
       else if (respDist <= level2Dist) fishLevel = 2;
       else fishLevel = 1;
       S.totalPoints += fishLevel;
-      playSound('cast');
       Object.assign(row, {
         respX: x, respY: y, rt: t, timedOut: 'False',
         respDist, respDistPx: respDist / pxToHeight,
@@ -457,7 +456,7 @@ function catchFeedback(fishLevel, respX, respY) {
   const holdTime = 1.0, dropTime = 0.8, bucketY = -0.38;
   setScreen({
     begin() {
-      playSound('catch_' + fishLevel, 0.12);
+      playSound('catch_' + fishLevel);
       playSound('basket', holdTime + dropTime);
     },
     draw(t) {
