@@ -46,7 +46,9 @@ const opponentOrder = [2, 4, 0, 6, 3, 5, 7, 1];
 const rowY = [0.14, 0.01, -0.12, -0.25];   // panel centred on the screen
 const basketPics = ['basket_brown', 'basket_orange', 'basket_blue'];   // a random one each round
 const basketW = 0.16, basketH = 0.151;
-const basketY = -0.5 + basketH / 2;   // very bottom of the screen, so the moving nets overlap it less
+// The basket sits at the very bottom of the game area (just above the iPad's home-bar margin),
+// so the moving nets overlap it less.
+function basketY() { return -0.5 + basketH / 2; }
 const avatarW = 0.063, avatarH = 0.11;    // player pictures are full figures (640 x 1120)
 
 const DARK = 'rgb(26, 57, 89)';        // PsychoPy colour [-0.8, -0.55, -0.3]
@@ -149,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v32';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -431,7 +433,7 @@ function trial() {
       drawPond();
       drawImg(netImage, netX, netY, priorRadius * 2, priorRadius * 2);   // whole net, faded edge included = 2 SD
       for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
-      drawImg(S.basket, 0, basketY, basketW, basketH);
+      drawImg(S.basket, 0, basketY(), basketW, basketH);
     },
     tap(x, y, t) {
       if (t < minDuration) return;
@@ -459,7 +461,7 @@ function catchFeedback(fishLevel, respX, respY) {
   S.row.fishImage = 'images/' + fishImage + '.png';
   S.blockFish.push(fishImage);
   S.blockLevels.push(fishLevel);
-  const holdTime = 1.0, dropTime = 0.8, bucketY = basketY + 0.02;   // fish drops into the basket
+  const holdTime = 1.0, dropTime = 0.8, bucketY = basketY() + 0.02;   // fish drops into the basket
   setScreen({
     begin() {
       playSound('catch_' + fishLevel);
@@ -476,7 +478,7 @@ function catchFeedback(fishLevel, respX, respY) {
         alpha = 0;
       }
       drawImg(fishImage, 0, fishY, 0.3 * fishSize * fishScale, 0.18 * fishSize * fishScale, alpha);
-      drawImg(S.basket, 0, basketY, basketW, basketH);
+      drawImg(S.basket, 0, basketY(), basketW, basketH);
       drawCircle(respX, respY, 0.01, 'red');
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
@@ -869,7 +871,13 @@ loadImages().then(() => {
 });
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  const hadOldVersion = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').then(() => {
-    $('offlineNote').textContent = 'Works offline once opened from the Home Screen.';
+    $('offlineNote').textContent = 'Works offline once opened from the Home Screen. Version ' + APP_VERSION;
   }).catch(() => {});
+  // A new version has just been downloaded: reload straight away if nobody is playing,
+  // so the iPad switches to it without having to close and reopen the app.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadOldVersion && !S) location.reload();
+  });
 }
