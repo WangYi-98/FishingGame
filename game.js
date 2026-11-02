@@ -46,9 +46,9 @@ const opponentOrder = [2, 4, 0, 6, 3, 5, 7, 1];
 const rowY = [0.14, 0.01, -0.12, -0.25];   // panel centred on the screen
 const basketPics = ['basket_brown', 'basket_orange', 'basket_blue'];   // a random one each round
 const basketW = 0.16, basketH = 0.151;
-// The basket sits at the very bottom of the game area (just above the iPad's home-bar margin),
-// so the moving nets overlap it less.
-function basketY() { return -0.5 + basketH / 2; }
+// The basket sits on the very bottom edge of the iPad screen (inside the home-bar margin),
+// so the moving nets overlap it less. Worked out from the current screen size.
+function basketY() { return -(screenH - cy) / unit + basketH / 2; }
 const avatarW = 0.063, avatarH = 0.11;    // player pictures are full figures (640 x 1120)
 
 const DARK = 'rgb(26, 57, 89)';        // PsychoPy colour [-0.8, -0.55, -0.3]
@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
