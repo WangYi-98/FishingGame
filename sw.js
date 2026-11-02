@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the game on the iPad.
 // Change VERSION whenever you update any file, so iPads pick up the new version.
-const VERSION = 'fishing-v23';
+const VERSION = 'fishing-v25';
 const FILES = [
   "./",
   "index.html",
@@ -56,7 +56,17 @@ const FILES = [
   "images/stars_h6.png",
   "images/stars_h7.png",
   "images/stars_h8.png",
-  "images/stars_h9.png"
+  "images/stars_h9.png",
+  "sounds/splash.wav",
+  "sounds/cast.wav",
+  "sounds/catch_1.wav",
+  "sounds/catch_2.wav",
+  "sounds/catch_3.wav",
+  "sounds/catch_4.wav",
+  "sounds/basket.wav",
+  "sounds/pop.wav",
+  "sounds/leaderboard.wav",
+  "sounds/fanfare.wav"
 ];
 
 self.addEventListener('install', event => {

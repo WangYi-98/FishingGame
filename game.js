@@ -98,12 +98,57 @@ function loadImages() {
   })));
 }
 
+// ---------------------------------------------------------------- sounds
+// Short sound effects (sounds/*.wav), played with Web Audio. The iPad only allows sound
+// after a tap, so the sound system is switched on by the "Start game" tap.
+const SOUND_ON = true;          // set to false to play the game silently
+const SOUND_VOLUME = 0.8;
+const SOUND_NAMES = ['splash', 'cast', 'catch_1', 'catch_2', 'catch_3', 'catch_4', 'basket', 'pop', 'leaderboard', 'fanfare'];
+const SND = {};
+let audio = null, audioGain = null;
+function unlockAudio() {
+  if (!SOUND_ON) return;
+  try {
+    // play even when the iPad is in silent mode (Safari 16.4+)
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    if (!audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = new AC();
+      audioGain = audio.createGain();
+      audioGain.gain.value = SOUND_VOLUME;
+      audioGain.connect(audio.destination);
+      SOUND_NAMES.forEach(name => {
+        fetch('sounds/' + name + '.wav')
+          .then(r => r.arrayBuffer())
+          .then(buf => new Promise((ok, bad) => audio.decodeAudioData(buf, ok, bad)))
+          .then(decoded => { SND[name] = decoded; })
+          .catch(() => {});   // a missing sound never stops the game
+      });
+    }
+    if (audio.state !== 'running') audio.resume();
+    // a silent blip: older iPads need a sound started inside the tap itself
+    const b = audio.createBuffer(1, 1, 22050), s = audio.createBufferSource();
+    s.buffer = b; s.connect(audio.destination); s.start(0);
+  } catch (e) {}
+}
+function playSound(name, delay = 0) {
+  if (!SOUND_ON || !audio || !SND[name]) return;
+  try {
+    if (audio.state !== 'running') audio.resume();
+    const s = audio.createBufferSource();
+    s.buffer = SND[name];
+    s.connect(audioGain);
+    s.start(audio.currentTime + delay);
+  } catch (e) {}
+}
+
 // ---------------------------------------------------------------- drawing
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v25';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -245,11 +290,11 @@ document.addEventListener('dblclick', e => e.preventDefault());
 // ---------------------------------------------------------------- experiment state
 let S = null;   // everything about the current game
 
-function newGame(participant, session) {
+function newGame(participant) {
   const practice = shuffle(TRIAL_SET.filter(r => r.practice === 1));
   const main = shuffle(TRIAL_SET.filter(r => r.practice === 0));
   S = {
-    participant, session,
+    participant,
     date: dateStr(),
     id: participant + '_' + dateStr(),
     trialPlan: practice.concat(main),   // 10 practice first, then 100 main
@@ -270,7 +315,7 @@ function newGame(participant, session) {
 
 function baseRow() {
   return {
-    participant: S.participant, session: S.session, date: S.date, expName: EXP_NAME,
+    participant: S.participant, date: S.date, expName: EXP_NAME,
     screenW, screenH, unitPx: Math.round(unit * 100) / 100,
   };
 }
@@ -285,6 +330,7 @@ function howPage(i) {
     draw() { drawCover('how_step' + (i + 1)); },   // whole page (with its own pond) fills the screen
     tap(x, y, t) {
       if (t < 0.5) return;
+      playSound('pop');
       if (i < 3) howPage(i + 1); else nextTrial();
     },
   });
@@ -325,6 +371,7 @@ function pickPlayer(then) {
           S.avgPic = playerPics[others[1]];
           S.worstPic = playerPics[others[2]];
           S.row.playerPicked = playerNames[k];
+          playSound('pop');
           then();
           return;
         }
@@ -341,7 +388,7 @@ function pondIntro(roundNow) {
       drawText('Round ' + roundNow + ' of 10', 0, 0.4, 0.04, DARK, false, 1.2);
       if (t >= 0.5) drawText('Tap to start', 0, -0.42, 0.03, DARK);
     },
-    tap(x, y, t) { if (t >= 0.5) trial(); },
+    tap(x, y, t) { if (t >= 0.5) { playSound('pop'); trial(); } },
   });
 }
 
@@ -373,6 +420,7 @@ function trial() {
   row.realY = r.realY;
 
   setScreen({
+    begin() { playSound('splash'); },
     draw() {
       drawPond();
       drawImg(netImage, 0, 0, priorRadius * 2, priorRadius * 2);   // whole net, faded edge included = 2 SD
@@ -388,6 +436,7 @@ function trial() {
       else if (respDist <= level2Dist) fishLevel = 2;
       else fishLevel = 1;
       S.totalPoints += fishLevel;
+      playSound('cast');
       Object.assign(row, {
         respX: x, respY: y, rt: t, timedOut: 'False',
         respDist, respDistPx: respDist / pxToHeight,
@@ -407,6 +456,10 @@ function catchFeedback(fishLevel, respX, respY) {
   S.blockLevels.push(fishLevel);
   const holdTime = 1.0, dropTime = 0.8, bucketY = -0.38;
   setScreen({
+    begin() {
+      playSound('catch_' + fishLevel, 0.12);
+      playSound('basket', holdTime + dropTime);
+    },
     draw(t) {
       drawPond();
       let fishY = 0, fishScale = 1, alpha = 1;
@@ -423,7 +476,7 @@ function catchFeedback(fishLevel, respX, respY) {
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
     },
-    tap(x, y, t) { if (t >= 1.8) afterCatch(); },
+    tap(x, y, t) { if (t >= 1.8) { playSound('pop'); afterCatch(); } },
   });
 }
 
@@ -463,7 +516,7 @@ function blockSummary(roundNum, then) {
       fish.forEach((f, i) => drawImg(f, xs[i % 5], ys[Math.floor(i / 5)], 0.15 * sumSize, 0.09 * sumSize));
       if (t >= 1) drawText('Tap to continue', 0, -0.42, 0.03, DARK);
     },
-    tap(x, y, t) { if (t >= 1) then(); },
+    tap(x, y, t) { if (t >= 1) { playSound('pop'); then(); } },
   });
 }
 
@@ -506,6 +559,7 @@ function leaderboard(roundNum, then) {
   const stars = players.map(p => 'stars_h' + toHalfStars(p[2]));
 
   setScreen({
+    begin() { playSound('leaderboard'); },
     draw(t) {
       drawPond();
       drawImg('lb_panel', 0, 0, 0.9, 0.72);
@@ -518,7 +572,7 @@ function leaderboard(roundNum, then) {
       }
       drawText('Tap to continue', 0, -0.42, 0.035, DARK, true);
     },
-    tap(x, y, t) { if (t >= 0.5) then(); },
+    tap(x, y, t) { if (t >= 0.5) { playSound('pop'); then(); } },
   });
 }
 
@@ -545,6 +599,7 @@ function finalRanking() {
   saveSession();
 
   setScreen({
+    begin() { playSound('fanfare'); },
     draw(t) {
       drawPond();
       drawImg('lb_panel', 0, 0, 0.9, 0.72);
@@ -558,7 +613,7 @@ function finalRanking() {
       }
       drawText('Thanks for playing!  Tap to finish', 0, -0.42, 0.035, DARK, true);
     },
-    tap(x, y, t) { if (t >= 1) showEnd(); },
+    tap(x, y, t) { if (t >= 1) { playSound('pop'); showEnd(); } },
   });
 }
 
@@ -576,7 +631,7 @@ function saveSession() {
   try {
     const store = loadStore();
     const was = store[S.id] || {};
-    store[S.id] = { participant: S.participant, session: S.session, date: S.date, complete: S.complete, exported: !!was.exported,
+    store[S.id] = { participant: S.participant, date: S.date, complete: S.complete, exported: !!was.exported,
                     nTrials: S.rows.filter(r => r.trialNum).length, rows: S.rows };
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
   } catch (e) {
@@ -585,7 +640,7 @@ function saveSession() {
 }
 
 const COLUMNS = [
-  'participant', 'session', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
+  'participant', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
   'priorCond', 'likeCond', 'inRing', 'basket',
   'splash1X', 'splash1Y', 'splash2X', 'splash2Y', 'splash3X', 'splash3Y', 'splash4X', 'splash4Y', 'splash5X', 'splash5Y',
   'splashMeanX', 'splashMeanY', 'realX', 'realY', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
@@ -688,7 +743,8 @@ $('startBtn').addEventListener('click', () => {
   if (!pid) { $('startErr').textContent = 'Please enter a participant ID.'; return; }
   if (!/^[\w.-]+$/.test(pid)) { $('startErr').textContent = 'Use letters, numbers, - or _ only.'; return; }
   $('pid').blur();
-  newGame(pid, $('session').value.trim() || '001');
+  unlockAudio();   // sound can only be switched on by a tap
+  newGame(pid);
   show(null);
   try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {}
   startGame();
@@ -708,7 +764,7 @@ function renderSessions() {
     meta.innerHTML = `<b></b><span class="tag ${s.complete ? 'done' : 'part'}">${s.complete ? 'complete' : 'unfinished'}</span>${s.exported ? '<span class="tag done">saved to Files</span>' : ''}<br>
       <span class="small"></span>`;
     meta.querySelector('b').textContent = s.participant;
-    meta.querySelector('.small').textContent = `${s.date.replace('_', ' ')} · session ${s.session} · ${s.nTrials} casts`;
+    meta.querySelector('.small').textContent = `${s.date.replace('_', ' ')} · ${s.nTrials} casts`;
     const btn = document.createElement('button');
     btn.className = 'secondary';
     btn.textContent = 'Export';
