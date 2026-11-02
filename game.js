@@ -148,7 +148,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -399,8 +399,12 @@ function trial() {
   const netImage = r.priorCond === 1 ? 'net_wide' : 'net_narrow';
   const priorSD = r.priorCond === 1 ? wideSD : narrowSD;
   const priorRadius = 2 * priorSD;   // circle radius = 2 SDs: about 86% of fish come up inside it
+  // the net moves around: everything in the trial list is relative to the net centre (netX, netY)
+  const netX = r.netX || 0, netY = r.netY || 0;
+  const r4 = v => Math.round(v * 1e4) / 1e4;
+  const realX = r4(r.realX + netX), realY = r4(r.realY + netY);
   const splashX = [], splashY = [];
-  for (let i = 1; i <= numSplashes; i++) { splashX.push(r['splash' + i + 'X']); splashY.push(r['splash' + i + 'Y']); }
+  for (let i = 1; i <= numSplashes; i++) { splashX.push(r4(r['splash' + i + 'X'] + netX)); splashY.push(r4(r['splash' + i + 'Y'] + netY)); }
   const row = S.row;
   Object.assign(row, {
     trialID: r.trialID,
@@ -408,6 +412,7 @@ function trial() {
     practice: S.thisN < roundLength ? 'True' : 'False',
     trialNum: S.thisN + 1,
     priorCond: r.priorCond, likeCond: r.likeCond, inRing: r.inRing,
+    netX, netY,
     basket: S.basket,
   });
   for (let i = 0; i < numSplashes; i++) {
@@ -416,20 +421,20 @@ function trial() {
   }
   row.splashMeanX = sum(splashX) / numSplashes;
   row.splashMeanY = sum(splashY) / numSplashes;
-  row.realX = r.realX;
-  row.realY = r.realY;
+  row.realX = realX;   // screen positions (net position included)
+  row.realY = realY;
 
   setScreen({
     begin() { playSound('splash'); },
     draw() {
       drawPond();
-      drawImg(netImage, 0, 0, priorRadius * 2, priorRadius * 2);   // whole net, faded edge included = 2 SD
+      drawImg(netImage, netX, netY, priorRadius * 2, priorRadius * 2);   // whole net, faded edge included = 2 SD
       for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
       drawImg(S.basket, 0, -0.4, basketW, basketH);
     },
     tap(x, y, t) {
       if (t < minDuration) return;
-      const respDist = Math.hypot(x - r.realX, y - r.realY);
+      const respDist = Math.hypot(x - realX, y - realY);
       let fishLevel;
       if (respDist <= level4Dist) fishLevel = 4;
       else if (respDist <= level3Dist) fishLevel = 3;
@@ -640,7 +645,7 @@ function saveSession() {
 
 const COLUMNS = [
   'participant', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
-  'priorCond', 'likeCond', 'inRing', 'basket',
+  'priorCond', 'likeCond', 'inRing', 'netX', 'netY', 'basket',
   'splash1X', 'splash1Y', 'splash2X', 'splash2Y', 'splash3X', 'splash3Y', 'splash4X', 'splash4Y', 'splash5X', 'splash5Y',
   'splashMeanX', 'splashMeanY', 'realX', 'realY', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
   'fishLevel', 'totalPoints', 'fishImage', 'playerPicked',
