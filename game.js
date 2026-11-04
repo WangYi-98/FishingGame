@@ -25,13 +25,15 @@ const level3Dist = 0.06;
 const level2Dist = 0.10;
 const fishSize = 2.8;                  // catch screen fish size (all levels)
 const sumSize = 2.2;                   // round summary fish size
-const roundLength = 10;
-const nTrials = 110;                   // 10 practice + 100 main
-
-// leaderboard players (from your own casts so far)
-const bestShare = 0.9;                 // best player = average of your top 90% of casts x 10
-const avgDrop = 0.5;                   // average player = your average round - 0.5 SD
-const worstShare = 0.5;                // worst player = average of your bottom 50% of casts x 10
+const nPractice = 9;                   // practice round: one cast at each of the 9 net spots
+const roundLength = 12;                // main rounds of 12 casts (3 of each condition)
+const nRounds = 9;                     // main rounds (each followed by the round graph)
+const nTrials = nPractice + nRounds * roundLength;   // 9 + 108 = 117
+// round 0 = practice, rounds 1-9 = main
+function roundOf(n) { return n < nPractice ? 0 : 1 + Math.floor((n - nPractice) / roundLength); }
+function roundStart(n) { return n === 0 || (n >= nPractice && (n - nPractice) % roundLength === 0); }
+function roundEnd(n) { return roundStart(n + 1); }
+const maxExtraRounds = 9;              // after round 9 they may play up to 9 extra rounds, one at a time
 
 const fishPics = {
   1: ['1_1', '1_2', '1_3', '1_4'],
@@ -42,14 +44,11 @@ const fishPics = {
 const levelWords = { 4: 'Amazing', 3: 'Great', 2: 'Good', 1: 'Small' };
 const playerPics = [1, 2, 3, 4, 5, 6, 7, 8].map(k => 'player_' + k);
 const playerNames = ['Mia', 'Zoe', 'Ana', 'Rosa', 'Sam', 'Kofi', 'Leo', 'Jun'];
-const opponentOrder = [2, 4, 0, 6, 3, 5, 7, 1];
-const rowY = [0.14, 0.01, -0.12, -0.25];   // panel centred on the screen
 const basketPics = ['basket_brown', 'basket_orange', 'basket_blue'];   // a random one each round
 const basketW = 0.16, basketH = 0.151;
 // The basket sits on the very bottom edge of the iPad screen (inside the home-bar margin),
 // so the moving nets overlap it less. Worked out from the current screen size.
 function basketY() { return -(screenH - cy) / unit + basketH / 2; }
-const avatarW = 0.063, avatarH = 0.11;    // player pictures are full figures (640 x 1120)
 
 const DARK = 'rgb(26, 57, 89)';        // PsychoPy colour [-0.8, -0.55, -0.3]
 const WINDOW_BG = 'rgb(70, 128, 179)'; // PsychoPy window colour [-0.45, 0, 0.4]
@@ -58,10 +57,8 @@ const IMAGE_NAMES = [
   'pond', 'net_narrow', 'net_wide', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
   '1_1', '1_2', '1_3', '1_4', '2_1', '2_2', '2_3', '3_1', '3_2', '4_1',
   'how_step1', 'how_step2', 'how_step3', 'how_step4',
-  'lb_panel', 'lb_ranks', 'row_highlight', 'pick_panel', 'player_you',
+  'lb_panel', 'pick_panel',
   ...playerPics,
-  'stars_h2', 'stars_h3', 'stars_h4', 'stars_h5', 'stars_h6', 'stars_h7', 'stars_h8', 'stars_h9', 'stars_h10',
-  'medal_1', 'medal_2', 'medal_3', 'medal_4',
 ];
 
 // ---------------------------------------------------------------- helpers
@@ -80,11 +77,6 @@ function shuffle(a) {
 }
 function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
 function sum(a) { return a.reduce((s, v) => s + v, 0); }
-function toHalfStars(score) {
-  // round score 15-35 -> 2-10 half stars (1 to 5 stars in steps of 0.5)
-  const h = 2 + pyRound((score - 15) / 20 * 8);
-  return Math.max(2, Math.min(10, h));
-}
 function dateStr(d = new Date()) {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}.${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
@@ -151,7 +143,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v37';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -293,23 +285,46 @@ document.addEventListener('dblclick', e => e.preventDefault());
 // ---------------------------------------------------------------- experiment state
 let S = null;   // everything about the current game
 
+// Main casts in a new random order for each person, dealt so that every round has 3 casts of each
+// condition, and the casts with the fish outside the net are spread out: each condition's go into
+// different rounds, and no round gets more than 2.
+function dealMainRounds(extra = false) {
+  const perRound = roundLength / 4;
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const rounds = Array.from({ length: nRounds }, () => []);
+    const outCount = new Array(nRounds).fill(0);
+    let ok = true;
+    for (const p of [0, 1]) for (const l of [0, 1]) {
+      const cond = TRIAL_SET.filter(r => r.practice === 0 && !!r.extra === extra && r.priorCond === p && r.likeCond === l);
+      const outside = shuffle(cond.filter(r => r.inRing === 0)), inside = shuffle(cond.filter(r => r.inRing !== 0));
+      const free = shuffle([...Array(nRounds).keys()].filter(k => outCount[k] < 2));
+      if (free.length < outside.length) { ok = false; break; }
+      const outRounds = free.slice(0, outside.length);
+      outRounds.forEach((k, i) => { rounds[k].push(outside[i]); outCount[k]++; });
+      for (let k = 0; k < nRounds; k++) while (rounds[k].filter(r => r.priorCond === p && r.likeCond === l).length < perRound) rounds[k].push(inside.pop());
+    }
+    if (ok) return rounds.flatMap(r => shuffle(r));
+  }
+  return shuffle(TRIAL_SET.filter(r => r.practice === 0 && !!r.extra === extra));   // (never needed)
+}
+
 function newGame(participant) {
   const practice = shuffle(TRIAL_SET.filter(r => r.practice === 1));
-  const main = shuffle(TRIAL_SET.filter(r => r.practice === 0));
+  const main = dealMainRounds();
   S = {
     participant,
     date: dateStr(),
     id: participant + '_' + dateStr(),
-    trialPlan: practice.concat(main),   // 10 practice first, then 100 main
+    trialPlan: practice.concat(main),   // 9 practice first, then 108 main
+    extraPlan: dealMainRounds(true),    // casts for the extra rounds, 12 per round, used only if they choose
+    endN: nTrials,                      // grows by 12 for each extra round they choose
     thisN: 0,
     rows: [],
     row: null,
     totalPoints: 0,
     blockFish: [], blockLevels: [],
-    castHistory: [], roundScores: [], lastRoundScore: 0,
-    totals: { You: 0, best: 0, avg: 0, worst: 0 },
-    yourPlaces: [],
-    youPic: playerPics[1], bestPic: playerPics[2], avgPic: playerPics[4], worstPic: playerPics[0],
+    roundScores: [], graphRounds: [],
+    youPic: playerPics[1],
     basket: basketPics[1],
     complete: false,
   };
@@ -340,15 +355,15 @@ function howPage(i) {
 }
 
 function nextTrial() {
-  if (S.thisN >= nTrials) { finalRanking(); return; }
+  if (S.thisN >= S.endN) { endOfGame(); return; }
   S.row = baseRow();
-  if (S.thisN === roundLength) pickPlayer(roundIntroOrTrial);
+  if (S.thisN === nPractice) pickPlayer(roundIntroOrTrial);
   else roundIntroOrTrial();
 }
 
 function roundIntroOrTrial() {
-  const roundNow = Math.floor(S.thisN / roundLength);
-  if (S.thisN % roundLength === 0 && roundNow >= 1) pondIntro(roundNow);
+  const roundNow = roundOf(S.thisN);
+  if (roundStart(S.thisN) && roundNow >= 1) pondIntro(roundNow);
   else trial();
 }
 
@@ -361,7 +376,7 @@ function pickPlayer(then) {
       drawImg('pick_panel', 0, 0, 1.1, 0.8);
       drawText('Practice done!\nPick your player:', 0, 0.28, 0.045, DARK, true);
       for (let k = 0; k < 8; k++) drawImg(playerPics[k], pickX[k % 4], pickY[Math.floor(k / 4)], pw, ph);
-      drawText("After each round, you'll see how you rank against other players.", 0, -0.32, 0.032, 'black', false, 1.0);
+      drawText("After each round, you'll see how many points you scored.", 0, -0.32, 0.032, 'black', false, 1.0);
     },
     tap(x, y, t) {
       if (t <= 0.5) return;
@@ -369,10 +384,6 @@ function pickPlayer(then) {
         const px = pickX[k % 4], py = pickY[Math.floor(k / 4)];
         if (Math.abs(x - px) <= pw / 2 && Math.abs(y - py) <= ph / 2) {
           S.youPic = playerPics[k];
-          const others = opponentOrder.filter(o => o !== k).slice(0, 3);
-          S.bestPic = playerPics[others[0]];
-          S.avgPic = playerPics[others[1]];
-          S.worstPic = playerPics[others[2]];
           S.row.playerPicked = playerNames[k];
           playSound('pop');
           then();
@@ -388,7 +399,7 @@ function pondIntro(roundNow) {
   setScreen({
     draw(t) {
       drawPond();
-      drawText('Round ' + roundNow + ' of 10', 0, 0.4, 0.04, DARK, false, 1.2);
+      drawText(roundNow > nRounds ? 'Extra round ' + (roundNow - nRounds) : 'Round ' + roundNow + ' of ' + nRounds, 0, 0.4, 0.04, DARK, false, 1.2);
       if (t >= 0.5) drawText('Tap to start', 0, -0.42, 0.03, DARK);
     },
     tap(x, y, t) { if (t >= 0.5) { playSound('pop'); trial(); } },
@@ -398,7 +409,7 @@ function pondIntro(roundNow) {
 // ---- one cast
 function trial() {
   const r = S.trialPlan[S.thisN];
-  if (S.thisN % roundLength === 0) S.basket = pick(basketPics);   // new basket each round
+  if (roundStart(S.thisN)) S.basket = pick(basketPics);   // new basket each round
   const netImage = r.priorCond === 1 ? 'net_wide' : 'net_narrow';
   const priorSD = r.priorCond === 1 ? wideSD : narrowSD;
   const priorRadius = 2 * priorSD;   // circle radius = 2 SDs: about 86% of fish come up inside it
@@ -411,11 +422,12 @@ function trial() {
   const row = S.row;
   Object.assign(row, {
     trialID: r.trialID,
-    roundNum: Math.floor(S.thisN / roundLength),
-    practice: S.thisN < roundLength ? 'True' : 'False',
+    roundNum: roundOf(S.thisN),
+    practice: S.thisN < nPractice ? 'True' : 'False',
+    extraRound: roundOf(S.thisN) > nRounds ? 'True' : 'False',
     trialNum: S.thisN + 1,
     priorCond: r.priorCond, likeCond: r.likeCond, inRing: r.inRing,
-    netX, netY,
+    netSpot: r.netSpot, netX, netY,
     basket: S.basket,
   });
   for (let i = 0; i < numSplashes; i++) {
@@ -488,17 +500,16 @@ function catchFeedback(fishLevel, respX, respY) {
 }
 
 function afterCatch() {
-  const endOfBlock = (S.thisN + 1) % roundLength === 0;
+  const endOfBlock = roundEnd(S.thisN);
   if (!endOfBlock) { advance(); return; }
-  const roundNum = Math.floor((S.thisN + 1) / roundLength) - 1;
+  const roundNum = roundOf(S.thisN);
   blockSummary(roundNum, () => {
     // end of round bookkeeping (summaryCode, End Routine)
-    S.lastRoundScore = sum(S.blockLevels);
-    S.castHistory = S.castHistory.concat(S.blockLevels);
-    S.roundScores.push(S.lastRoundScore);
+    S.roundScores.push(sum(S.blockLevels));
+    if (roundNum >= 1) S.graphRounds.push(S.blockLevels.slice());
     S.blockFish = [];
     S.blockLevels = [];
-    if (roundNum >= 1) leaderboard(roundNum, advance);
+    if (roundNum >= 1) roundGraph(roundNum, advance);   // no graph after the practice
     else advance();
   });
 }
@@ -515,113 +526,151 @@ function advance() {
 function blockSummary(roundNum, then) {
   const title = roundNum === 0 ? 'Practice catch' : 'Round ' + roundNum + ' catch';
   const fish = S.blockFish.slice();
-  const xs = [-0.4, -0.2, 0, 0.2, 0.4], ys = [0.115, -0.115];   // centred on the screen
+  // 3 rows: 4 fish per row in a main round (12), 3 per row in the practice (9); centred on the screen
+  const perRow = Math.ceil(fish.length / 3), ys = [0.2, 0, -0.2];
+  const nRow = r => Math.min(perRow, fish.length - r * perRow);
+  const xOf = i => (i % perRow - (nRow(Math.floor(i / perRow)) - 1) / 2) * 0.26;
   setScreen({
     draw(t) {
       drawPond();
       drawText(title, 0, 0.4, 0.05, DARK);
-      fish.forEach((f, i) => drawImg(f, xs[i % 5], ys[Math.floor(i / 5)], 0.15 * sumSize, 0.09 * sumSize));
+      fish.forEach((f, i) => drawImg(f, xOf(i), ys[Math.floor(i / perRow)], 0.15 * sumSize, 0.09 * sumSize));
       if (t >= 1) drawText('Tap to continue', 0, -0.42, 0.03, DARK);
     },
     tap(x, y, t) { if (t >= 1) { playSound('pop'); then(); } },
   });
 }
 
-// ---- round leaderboard
-function leaderboard(roundNum, then) {
-  const ranked = S.castHistory.slice().sort((a, b) => a - b);
-  const n = ranked.length;
-  const kBest = Math.max(1, pyRound(bestShare * n));
-  const kWorst = Math.max(1, pyRound(worstShare * n));
-  const meanCast = sum(ranked) / n;
-  const castSD = Math.sqrt(sum(ranked.map(c => (c - meanCast) ** 2)) / n);
-  const roundSD = castSD * Math.sqrt(10);    // how much your round scores usually vary
-  const bestScore = sum(ranked.slice(n - kBest)) / kBest * 10;
-  const avgScore = meanCast * 10 - avgDrop * roundSD;
-  let worstScore = sum(ranked.slice(0, kWorst)) / kWorst * 10;
-  // last round: the worst player must end behind you overall
-  if (roundNum === 10) {
-    const maxWorst = S.totals.You + S.lastRoundScore - S.totals.worst - 1;
-    worstScore = Math.max(10, Math.min(worstScore, maxWorst));
-  }
-  S.totals.You += S.lastRoundScore;
-  S.totals.best += bestScore;
-  S.totals.avg += avgScore;
-  S.totals.worst += worstScore;
-
-  const players = [
-    ['You', S.youPic, S.lastRoundScore],
-    ['best', S.bestPic, bestScore],
-    ['avg', S.avgPic, avgScore],
-    ['worst', S.worstPic, worstScore],
-  ];
-  // highest score first; on a tie the participant goes above
-  players.sort((a, b) => (b[2] - a[2]) || ((a[0] === 'You' ? 0 : 1) - (b[0] === 'You' ? 0 : 1)));
-  const youRow = players.findIndex(p => p[0] === 'You');
-  S.yourPlaces.push(youRow + 1);
-  Object.assign(S.row, {
-    lbRank: youRow + 1, lbYouScore: S.lastRoundScore,
-    lbBest: bestScore, lbAverage: avgScore, lbWorst: worstScore,
-  });
-  const stars = players.map(p => 'stars_h' + toHalfStars(p[2]));
-
+// ---- round graph: points in each round so far (rounds 1-10, not the practice),
+// each bar split by fish type. After round 10 a crown marks the best round(s).
+const LEVEL_COLOURS = { 1: 'rgb(150, 205, 235)', 2: 'rgb(80, 160, 225)', 3: 'rgb(40, 100, 190)', 4: 'rgb(245, 160, 30)' };
+const LEVEL_NAMES = { 1: 'Small fish', 2: 'Good fish', 3: 'Great fish', 4: 'Amazing fish' };
+function roundGraph(roundNum, then) {
+  const rounds = S.graphRounds;              // fish levels of each finished round (1..roundNum)
+  const totals = rounds.map(r => sum(r));
+  const done9 = roundNum >= nRounds;         // from round 9 on: crown, and the extra-round choice
+  const canExtra = done9 && roundNum < nRounds + maxExtraRounds;
+  const best = Math.max(...totals);
+  const nSlots = Math.max(nRounds, roundNum);
+  S.row.roundScore = totals[totals.length - 1];
+  if (done9) S.row.bestRound = totals.map((t, i) => (t === best ? i + 1 : null)).filter(Boolean).join(';');
+  const title = roundNum < nRounds ? 'Round ' + roundNum + ' of ' + nRounds
+    : roundNum === nRounds ? 'All ' + nRounds + ' rounds done!' : 'Extra round ' + (roundNum - nRounds) + ' done!';
+  const px = (x, y) => [cx + x * unit, cy - y * unit];
+  const rect = (x0, y0, x1, y1) => { const [l, t] = px(x0, y1), [r, b] = px(x1, y0); return [l, t, r - l, b - t]; };
+  // buttons below the panel (height units: centre x, centre y, width, height)
+  const btnExtra = { x: -0.17, y: -0.435, w: 0.4, h: 0.075, label: 'Play an extra round' };
+  const btnFinish = { x: 0.2, y: -0.435, w: 0.24, h: 0.075, label: 'Finish' };
+  const inBtn = (b, x, y) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2;
+  const drawBtn = (b, fill) => {
+    const [l, t] = px(b.x - b.w / 2, b.y + b.h / 2);
+    ctx.fillStyle = fill; ctx.strokeStyle = 'white'; ctx.lineWidth = unit * 0.004;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(l, t, b.w * unit, b.h * unit, b.h * unit / 2); else ctx.rect(l, t, b.w * unit, b.h * unit);
+    ctx.fill(); ctx.stroke();
+    drawText(b.label, b.x, b.y, 0.032, 'white', true);
+  };
   setScreen({
-    begin() { playSound('leaderboard'); },
+    begin() { playSound(roundNum === nRounds ? 'fanfare' : 'leaderboard'); },
     draw(t) {
       drawPond();
       drawImg('lb_panel', 0, 0, 0.9, 0.72);
-      drawImg('row_highlight', 0, rowY[youRow], 0.86, 0.115);
-      drawImg('lb_ranks', 0, 0, 0.9, 0.72);
-      drawText('Round ' + roundNum + ' leaderboard', 0, 0.28, 0.05, DARK, true);
-      for (let i = 0; i < 4; i++) {
-        drawImg(players[i][1], -0.2, rowY[i], avatarW, avatarH);
-        drawImg(stars[i], 0.12, rowY[i], 0.34, 0.065);
+      drawText(title, 0, 0.28, done9 ? 0.045 : 0.05, DARK, true);
+      // plot area (height units)
+      const x0 = -0.33, x1 = 0.37, y0 = -0.22, y1 = done9 ? 0.15 : 0.18, maxP = 50;   // a round is worth up to 48
+      const yOf = p => y0 + (y1 - y0) * p / maxP;
+      const slot = (x1 - x0) / nSlots, bw = slot * 0.62;
+      if (nSlots > nRounds) {   // extra rounds: light band behind them
+        ctx.fillStyle = 'rgba(245, 160, 30, 0.12)';
+        ctx.fillRect(...rect(x0 + slot * nRounds, y0, x1, y1));
+        drawText('Extra', x0 + slot * (nRounds + (nSlots - nRounds) / 2), y1 - 0.015, 0.022, DARK, true);
       }
-      drawText('Tap to continue', 0, -0.42, 0.035, DARK, true);
+      ctx.lineWidth = Math.max(1, unit * 0.002);
+      for (let p = 0; p <= maxP; p += 10) {
+        ctx.strokeStyle = p === 0 ? DARK : 'rgba(26, 57, 89, 0.18)';
+        const [l, yy] = px(x0, yOf(p)), [r] = px(x1, yOf(p));
+        ctx.beginPath(); ctx.moveTo(l, yy); ctx.lineTo(r, yy); ctx.stroke();
+        drawText(String(p), x0 - 0.03, yOf(p), 0.026, DARK);
+      }
+      ctx.save(); ctx.translate(...px(x0 - 0.075, (y0 + y1) / 2)); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = DARK; ctx.font = `bold ${0.028 * unit}px Arial, Helvetica, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('Points', 0, 0); ctx.restore();
+      const numSize = nSlots > 12 ? 0.021 : 0.026;
+      for (let r = 1; r <= nSlots; r++) {
+        const xc = x0 + slot * (r - 0.5);
+        drawText(String(r), xc, y0 - 0.03, numSize, DARK, r === roundNum);
+        if (r > roundNum) {   // rounds still to come: empty dashed outline
+          ctx.setLineDash([unit * 0.006, unit * 0.006]); ctx.strokeStyle = 'rgba(26, 57, 89, 0.25)';
+          ctx.strokeRect(...rect(xc - bw / 2, y0, xc + bw / 2, yOf(maxP * 0.12))); ctx.setLineDash([]);
+          continue;
+        }
+        const levels = rounds[r - 1], total = totals[r - 1];
+        let p0 = 0;
+        for (const lv of [1, 2, 3, 4]) {
+          const pts = levels.filter(v => v === lv).length * lv;
+          if (!pts) continue;
+          const box = rect(xc - bw / 2, yOf(p0), xc + bw / 2, yOf(p0 + pts));
+          ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...box);
+          ctx.strokeStyle = 'white'; ctx.lineWidth = Math.max(1, unit * 0.002); ctx.strokeRect(...box);
+          p0 += pts;
+        }
+        if (r === roundNum) {   // this round: dark outline
+          ctx.strokeStyle = DARK; ctx.lineWidth = unit * 0.005;
+          ctx.strokeRect(...rect(xc - bw / 2, y0, xc + bw / 2, yOf(total)));
+        }
+        drawText(String(total), xc, yOf(total) + 0.022, numSize, DARK, r === roundNum || (done9 && total === best));
+        if (done9 && total === best) drawCrown(xc, yOf(total) + 0.07, nSlots > 12 ? 0.75 : 1);
+      }
+      drawText('Round', (x0 + x1) / 2, y0 - 0.065, 0.026, DARK, true);
+      // key
+      [1, 2, 3, 4].forEach((lv, i) => {
+        const lx = [-0.34, -0.15, 0.04, 0.22][i], ly = -0.335;
+        ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...rect(lx, ly - 0.014, lx + 0.028, ly + 0.014));
+        ctx.fillStyle = DARK; ctx.font = `${0.024 * unit}px Arial, Helvetica, sans-serif`;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(LEVEL_NAMES[lv], ...px(lx + 0.04, ly));
+      });
+      if (t < 0.5) return;
+      if (canExtra) { drawBtn(btnExtra, 'rgb(40, 150, 90)'); drawBtn(btnFinish, DARK); }
+      else drawText(done9 ? 'Tap to finish' : 'Tap to continue', 0, -0.44, 0.035, DARK, true);
     },
-    tap(x, y, t) { if (t >= 0.5) { playSound('pop'); then(); } },
+    tap(x, y, t) {
+      if (t < 0.5) return;
+      if (!canExtra) { playSound('pop'); then(); return; }
+      if (inBtn(btnExtra, x, y)) {
+        playSound('pop');
+        S.row.choice = 'extra';
+        const k = roundNum - nRounds;   // extra rounds already played
+        S.trialPlan.push(...S.extraPlan.slice(k * roundLength, (k + 1) * roundLength));
+        S.endN += roundLength;
+        then();
+      } else if (inBtn(btnFinish, x, y)) {
+        playSound('pop');
+        S.row.choice = 'finish';
+        then();
+      }
+    },
   });
 }
 
-// ---- end of game
-function finalRanking() {
-  const T = S.totals;
-  const fp = [
-    ['You', S.youPic, T.You],
-    ['best', S.bestPic, T.best],
-    ['avg', S.avgPic, T.avg],
-    ['worst', S.worstPic, T.worst],
-  ];
-  fp.sort((a, b) => (b[2] - a[2]) || ((a[0] === 'You' ? 0 : 1) - (b[0] === 'You' ? 0 : 1)));
-  if (fp[3][0] === 'You') [fp[2], fp[3]] = [fp[3], fp[2]];   // safety: never last
-  const nRounds = Math.max(1, S.yourPlaces.length);
-  const youRow = fp.findIndex(p => p[0] === 'You');
-  const stars = fp.map(p => 'stars_h' + toHalfStars(p[2] / nRounds));
-  const finalRow = Object.assign(baseRow(), {
-    finalRank: youRow + 1,
-    finalTotalYou: T.You, finalTotalBest: T.best, finalTotalAvg: T.avg, finalTotalWorst: T.worst,
+// a gold crown drawn at (x, y), in height units
+function drawCrown(x, y, scale = 1) {
+  const mx = cx + x * unit, my = cy - y * unit, w = 0.06 * unit * scale, h = 0.042 * unit * scale;
+  ctx.beginPath();
+  ctx.moveTo(mx - w / 2, my + h / 2); ctx.lineTo(mx - w / 2, my - h / 2 + h * 0.15); ctx.lineTo(mx - w / 4, my);
+  ctx.lineTo(mx, my - h / 2); ctx.lineTo(mx + w / 4, my); ctx.lineTo(mx + w / 2, my - h / 2 + h * 0.15);
+  ctx.lineTo(mx + w / 2, my + h / 2); ctx.closePath();
+  ctx.fillStyle = 'rgb(255, 205, 40)'; ctx.fill();
+  ctx.lineWidth = unit * 0.004; ctx.strokeStyle = 'rgb(170, 110, 0)'; ctx.stroke();
+  [[-w / 2, -h / 2 + h * 0.15], [0, -h / 2], [w / 2, -h / 2 + h * 0.15]].forEach(([dx, dy]) => {
+    ctx.beginPath(); ctx.arc(mx + dx, my + dy, unit * 0.007 * scale, 0, 7); ctx.fillStyle = 'rgb(230, 60, 80)'; ctx.fill();
   });
-  S.rows.push(finalRow);
+}
+
+// ---- end of game: the last round graph has been shown, so save and thank them
+function endOfGame() {
   S.complete = true;
   saveSession();
-
-  setScreen({
-    begin() { playSound('fanfare'); },
-    draw(t) {
-      drawPond();
-      drawImg('lb_panel', 0, 0, 0.9, 0.72);
-      drawImg('row_highlight', 0, rowY[youRow], 0.86, 0.115);
-      drawImg('lb_ranks', 0, 0, 0.9, 0.72);
-      drawText('Final ranking', 0, 0.28, 0.05, DARK, true);
-      for (let i = 0; i < 4; i++) {
-        drawImg(fp[i][1], -0.22, rowY[i], avatarW, avatarH);
-        drawImg(stars[i], 0.04, rowY[i], 0.3, 0.057);
-        drawImg('medal_' + (i + 1), 0.32, rowY[i], 0.085, 0.085);
-      }
-      drawText('Thanks for playing!  Tap to finish', 0, -0.42, 0.035, DARK, true);
-    },
-    tap(x, y, t) { if (t >= 1) { playSound('pop'); showEnd(); } },
-  });
+  showEnd();
 }
 
 // ---------------------------------------------------------------- data storage
@@ -648,12 +697,11 @@ function saveSession() {
 
 const COLUMNS = [
   'participant', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
-  'priorCond', 'likeCond', 'inRing', 'netX', 'netY', 'basket',
+  'priorCond', 'likeCond', 'inRing', 'netSpot', 'netX', 'netY', 'basket',
   'splash1X', 'splash1Y', 'splash2X', 'splash2Y', 'splash3X', 'splash3Y', 'splash4X', 'splash4Y', 'splash5X', 'splash5Y',
   'splashMeanX', 'splashMeanY', 'realX', 'realY', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
   'fishLevel', 'totalPoints', 'fishImage', 'playerPicked',
-  'lbRank', 'lbYouScore', 'lbBest', 'lbAverage', 'lbWorst',
-  'finalRank', 'finalTotalYou', 'finalTotalBest', 'finalTotalAvg', 'finalTotalWorst',
+  'extraRound', 'roundScore', 'bestRound', 'choice',
   'screenW', 'screenH', 'unitPx',
 ];
 function toCSV(rows) {

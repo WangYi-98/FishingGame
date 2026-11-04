@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the game on the iPad.
 // Change VERSION whenever you update any file, so iPads pick up the new version.
-const VERSION = 'fishing-v33';
+const VERSION = 'fishing-v37';
 const FILES = [
   "./",
   "index.html",
@@ -28,11 +28,6 @@ const FILES = [
   "images/how_step3.png",
   "images/how_step4.png",
   "images/lb_panel.png",
-  "images/lb_ranks.png",
-  "images/medal_1.png",
-  "images/medal_2.png",
-  "images/medal_3.png",
-  "images/medal_4.png",
   "images/net_narrow.png",
   "images/net_wide.png",
   "images/pick_panel.png",
@@ -44,19 +39,8 @@ const FILES = [
   "images/player_6.png",
   "images/player_7.png",
   "images/player_8.png",
-  "images/player_you.png",
   "images/pond.png",
-  "images/row_highlight.png",
   "images/splash.png",
-  "images/stars_h10.png",
-  "images/stars_h2.png",
-  "images/stars_h3.png",
-  "images/stars_h4.png",
-  "images/stars_h5.png",
-  "images/stars_h6.png",
-  "images/stars_h7.png",
-  "images/stars_h8.png",
-  "images/stars_h9.png",
   "sounds/splash.wav",
   "sounds/catch_1.wav",
   "sounds/catch_2.wav",
