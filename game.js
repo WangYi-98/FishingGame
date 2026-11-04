@@ -143,7 +143,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v40';
+const APP_VERSION = 'v41';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -613,10 +613,6 @@ function roundGraph(roundNum, then) {
           ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...box);
           ctx.strokeStyle = 'white'; ctx.lineWidth = Math.max(1, unit * 0.002); ctx.strokeRect(...box);
           p0 += pts;
-        }
-        if (r === roundNum) {   // this round: dark outline
-          ctx.strokeStyle = DARK; ctx.lineWidth = unit * 0.005;
-          ctx.strokeRect(...rect(xc - bw / 2, y0, xc + bw / 2, yOf(total)));
         }
         const isBest = done9 && total === best, small = nSlots > 12 ? 0.8 : 1;
         if (r === roundNum) {
