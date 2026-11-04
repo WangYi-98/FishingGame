@@ -143,7 +143,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v37';
+const APP_VERSION = 'v40';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -577,7 +577,7 @@ function roundGraph(roundNum, then) {
       drawImg('lb_panel', 0, 0, 0.9, 0.72);
       drawText(title, 0, 0.28, done9 ? 0.045 : 0.05, DARK, true);
       // plot area (height units)
-      const x0 = -0.33, x1 = 0.37, y0 = -0.22, y1 = done9 ? 0.15 : 0.18, maxP = 50;   // a round is worth up to 48
+      const x0 = -0.33, x1 = 0.37, y0 = -0.185, y1 = 0.145, maxP = 50;   // a round is worth up to 48 (room above for the player)
       const yOf = p => y0 + (y1 - y0) * p / maxP;
       const slot = (x1 - x0) / nSlots, bw = slot * 0.62;
       if (nSlots > nRounds) {   // extra rounds: light band behind them
@@ -618,13 +618,21 @@ function roundGraph(roundNum, then) {
           ctx.strokeStyle = DARK; ctx.lineWidth = unit * 0.005;
           ctx.strokeRect(...rect(xc - bw / 2, y0, xc + bw / 2, yOf(total)));
         }
-        drawText(String(total), xc, yOf(total) + 0.022, numSize, DARK, r === roundNum || (done9 && total === best));
-        if (done9 && total === best) drawCrown(xc, yOf(total) + 0.07, nSlots > 12 ? 0.75 : 1);
+        const isBest = done9 && total === best, small = nSlots > 12 ? 0.8 : 1;
+        if (r === roundNum) {
+          // the player they picked stands on this round's bar (wearing the crown if it is their best)
+          const ah = 0.085 * small, aw = ah * 640 / 1120, top = yOf(total);
+          drawImg(S.youPic, xc, top + ah / 2, aw, ah);
+          if (isBest) drawCrown(xc, top + ah + 0.012 * small, 0.75 * small);
+        } else if (isBest) {
+          drawCrown(xc, yOf(total) + 0.03 * small, small * (nSlots > 12 ? 0.75 : 1));
+        }
+        // (no point numbers above the bars)
       }
       drawText('Round', (x0 + x1) / 2, y0 - 0.065, 0.026, DARK, true);
       // key
       [1, 2, 3, 4].forEach((lv, i) => {
-        const lx = [-0.34, -0.15, 0.04, 0.22][i], ly = -0.335;
+        const lx = [-0.34, -0.15, 0.04, 0.22][i], ly = -0.3;
         ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...rect(lx, ly - 0.014, lx + 0.028, ly + 0.014));
         ctx.fillStyle = DARK; ctx.font = `${0.024 * unit}px Arial, Helvetica, sans-serif`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(LEVEL_NAMES[lv], ...px(lx + 0.04, ly));
