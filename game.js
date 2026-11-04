@@ -41,6 +41,8 @@ const fishPics = {
   3: ['3_1', '3_2'],
   4: ['4_1'],
 };
+// points for each fish level (Small, Good, Great, Amazing)
+const FISH_POINTS = { 1: 1, 2: 2, 3: 3, 4: 5 };   // Amazing is worth 5
 const levelWords = { 4: 'Amazing', 3: 'Great', 2: 'Good', 1: 'Small' };
 const playerPics = [1, 2, 3, 4, 5, 6, 7, 8].map(k => 'player_' + k);
 const playerNames = ['Mia', 'Zoe', 'Ana', 'Rosa', 'Sam', 'Kofi', 'Leo', 'Jun'];
@@ -143,7 +145,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v41';
+const APP_VERSION = 'v43';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -455,7 +457,7 @@ function trial() {
       else if (respDist <= level3Dist) fishLevel = 3;
       else if (respDist <= level2Dist) fishLevel = 2;
       else fishLevel = 1;
-      S.totalPoints += fishLevel;
+      S.totalPoints += FISH_POINTS[fishLevel];
       Object.assign(row, {
         respX: x, respY: y, rt: t, timedOut: 'False',
         respDist, respDistPx: respDist / pxToHeight,
@@ -505,7 +507,7 @@ function afterCatch() {
   const roundNum = roundOf(S.thisN);
   blockSummary(roundNum, () => {
     // end of round bookkeeping (summaryCode, End Routine)
-    S.roundScores.push(sum(S.blockLevels));
+    S.roundScores.push(sum(S.blockLevels.map(l => FISH_POINTS[l])));
     if (roundNum >= 1) S.graphRounds.push(S.blockLevels.slice());
     S.blockFish = [];
     S.blockLevels = [];
@@ -543,23 +545,23 @@ function blockSummary(roundNum, then) {
 
 // ---- round graph: points in each round so far (rounds 1-10, not the practice),
 // each bar split by fish type. After round 10 a crown marks the best round(s).
-const LEVEL_COLOURS = { 1: 'rgb(150, 205, 235)', 2: 'rgb(80, 160, 225)', 3: 'rgb(40, 100, 190)', 4: 'rgb(245, 160, 30)' };
+const LEVEL_COLOURS = { 1: 'rgb(255, 215, 0)', 2: 'rgb(255, 119, 0)', 3: 'rgb(239, 61, 100)', 4: 'rgb(173, 77, 255)' };   // design palette: yellow, orange, pink, purple
 const LEVEL_NAMES = { 1: 'Small fish', 2: 'Good fish', 3: 'Great fish', 4: 'Amazing fish' };
 function roundGraph(roundNum, then) {
   const rounds = S.graphRounds;              // fish levels of each finished round (1..roundNum)
-  const totals = rounds.map(r => sum(r));
+  const totals = rounds.map(r => sum(r.map(l => FISH_POINTS[l])));
   const done9 = roundNum >= nRounds;         // from round 9 on: crown, and the extra-round choice
   const canExtra = done9 && roundNum < nRounds + maxExtraRounds;
   const best = Math.max(...totals);
   const nSlots = Math.max(nRounds, roundNum);
   S.row.roundScore = totals[totals.length - 1];
-  if (done9) S.row.bestRound = totals.map((t, i) => (t === best ? i + 1 : null)).filter(Boolean).join(';');
+  S.row.bestRound = totals.map((t, i) => (t === best ? i + 1 : null)).filter(Boolean).join(';');
   const title = roundNum < nRounds ? 'Round ' + roundNum + ' of ' + nRounds
     : roundNum === nRounds ? 'All ' + nRounds + ' rounds done!' : 'Extra round ' + (roundNum - nRounds) + ' done!';
   const px = (x, y) => [cx + x * unit, cy - y * unit];
   const rect = (x0, y0, x1, y1) => { const [l, t] = px(x0, y1), [r, b] = px(x1, y0); return [l, t, r - l, b - t]; };
   // buttons below the panel (height units: centre x, centre y, width, height)
-  const btnExtra = { x: -0.17, y: -0.435, w: 0.4, h: 0.075, label: 'Play an extra round' };
+  const btnExtra = { x: -0.17, y: -0.435, w: 0.4, h: 0.075, label: 'Keep playing' };
   const btnFinish = { x: 0.2, y: -0.435, w: 0.24, h: 0.075, label: 'Finish' };
   const inBtn = (b, x, y) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2;
   const drawBtn = (b, fill) => {
@@ -577,24 +579,12 @@ function roundGraph(roundNum, then) {
       drawImg('lb_panel', 0, 0, 0.9, 0.72);
       drawText(title, 0, 0.28, done9 ? 0.045 : 0.05, DARK, true);
       // plot area (height units)
-      const x0 = -0.33, x1 = 0.37, y0 = -0.185, y1 = 0.145, maxP = 50;   // a round is worth up to 48 (room above for the player)
+      const x0 = -0.36, x1 = 0.36, y0 = -0.15, y1 = 0.15, maxP = roundLength * FISH_POINTS[4] + 2;   // a round's top score, plus a little room
       const yOf = p => y0 + (y1 - y0) * p / maxP;
       const slot = (x1 - x0) / nSlots, bw = slot * 0.62;
-      if (nSlots > nRounds) {   // extra rounds: light band behind them
-        ctx.fillStyle = 'rgba(245, 160, 30, 0.12)';
-        ctx.fillRect(...rect(x0 + slot * nRounds, y0, x1, y1));
-        drawText('Extra', x0 + slot * (nRounds + (nSlots - nRounds) / 2), y1 - 0.015, 0.022, DARK, true);
-      }
-      ctx.lineWidth = Math.max(1, unit * 0.002);
-      for (let p = 0; p <= maxP; p += 10) {
-        ctx.strokeStyle = p === 0 ? DARK : 'rgba(26, 57, 89, 0.18)';
-        const [l, yy] = px(x0, yOf(p)), [r] = px(x1, yOf(p));
-        ctx.beginPath(); ctx.moveTo(l, yy); ctx.lineTo(r, yy); ctx.stroke();
-        drawText(String(p), x0 - 0.03, yOf(p), 0.026, DARK);
-      }
-      ctx.save(); ctx.translate(...px(x0 - 0.075, (y0 + y1) / 2)); ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = DARK; ctx.font = `bold ${0.028 * unit}px Arial, Helvetica, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('Points', 0, 0); ctx.restore();
+      // no y axis or grid lines: just the line the bars stand on
+      ctx.lineWidth = Math.max(1, unit * 0.002); ctx.strokeStyle = DARK;
+      { const [l, yy] = px(x0, y0), [r] = px(x1, y0); ctx.beginPath(); ctx.moveTo(l, yy); ctx.lineTo(r, yy); ctx.stroke(); }
       const numSize = nSlots > 12 ? 0.021 : 0.026;
       for (let r = 1; r <= nSlots; r++) {
         const xc = x0 + slot * (r - 0.5);
@@ -607,14 +597,15 @@ function roundGraph(roundNum, then) {
         const levels = rounds[r - 1], total = totals[r - 1];
         let p0 = 0;
         for (const lv of [1, 2, 3, 4]) {
-          const pts = levels.filter(v => v === lv).length * lv;
+          const pts = levels.filter(v => v === lv).length * FISH_POINTS[lv];
           if (!pts) continue;
           const box = rect(xc - bw / 2, yOf(p0), xc + bw / 2, yOf(p0 + pts));
           ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...box);
           ctx.strokeStyle = 'white'; ctx.lineWidth = Math.max(1, unit * 0.002); ctx.strokeRect(...box);
           p0 += pts;
         }
-        const isBest = done9 && total === best, small = nSlots > 12 ? 0.8 : 1;
+        const isBest = total === best,   // crown on the best round so far, every time
+              small = nSlots > 12 ? 0.8 : 1;
         if (r === roundNum) {
           // the player they picked stands on this round's bar (wearing the crown if it is their best)
           const ah = 0.085 * small, aw = ah * 640 / 1120, top = yOf(total);
@@ -628,7 +619,7 @@ function roundGraph(roundNum, then) {
       drawText('Round', (x0 + x1) / 2, y0 - 0.065, 0.026, DARK, true);
       // key
       [1, 2, 3, 4].forEach((lv, i) => {
-        const lx = [-0.34, -0.15, 0.04, 0.22][i], ly = -0.3;
+        const lx = [-0.34, -0.15, 0.04, 0.22][i], ly = -0.265;
         ctx.fillStyle = LEVEL_COLOURS[lv]; ctx.fillRect(...rect(lx, ly - 0.014, lx + 0.028, ly + 0.014));
         ctx.fillStyle = DARK; ctx.font = `${0.024 * unit}px Arial, Helvetica, sans-serif`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(LEVEL_NAMES[lv], ...px(lx + 0.04, ly));
