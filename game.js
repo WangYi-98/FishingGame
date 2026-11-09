@@ -55,8 +55,12 @@ function basketY() { return -(screenH - cy) / unit + basketH / 2; }
 const DARK = 'rgb(26, 57, 89)';        // PsychoPy colour [-0.8, -0.55, -0.3]
 const WINDOW_BG = 'rgb(70, 128, 179)'; // PsychoPy window colour [-0.45, 0, 0.4]
 
+// the fish detector at the top of the pond (picture is 629 x 720)
+const THROW_NET = 0.1;   // size of the thrown net on the catch screen
+const DEVICE_H = 0.1, DEVICE_W = DEVICE_H * 629 / 720, DEVICE_Y = 0.445;
 const IMAGE_NAMES = [
-  'pond', 'net_narrow', 'net_wide', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
+  'detector_wide', 'detector_narrow', 'detector_device',
+  'pond', 'net_narrow', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
   '1_1', '1_2', '1_3', '1_4', '2_1', '2_2', '2_3', '3_1', '3_2', '4_1',
   'how_step1', 'how_step2', 'how_step3', 'how_step4',
   'lb_panel', 'pick_panel',
@@ -100,7 +104,7 @@ function loadImages() {
 // after a tap, so the sound system is switched on by the "Start game" tap.
 const SOUND_ON = true;          // set to false to play the game silently
 const SOUND_VOLUME = 0.8;
-const SOUND_NAMES = ['splash', 'catch_1', 'catch_2', 'catch_3', 'catch_4', 'basket', 'pop', 'leaderboard', 'fanfare'];
+const SOUND_NAMES = ['beep_weak', 'beep_strong', 'splash', 'catch_1', 'catch_2', 'catch_3', 'catch_4', 'basket', 'pop', 'leaderboard', 'fanfare'];
 const SND = {};
 let audio = null, audioGain = null;
 function unlockAudio() {
@@ -145,7 +149,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v43';
+const APP_VERSION = 'v44';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -412,7 +416,7 @@ function pondIntro(roundNow) {
 function trial() {
   const r = S.trialPlan[S.thisN];
   if (roundStart(S.thisN)) S.basket = pick(basketPics);   // new basket each round
-  const netImage = r.priorCond === 1 ? 'net_wide' : 'net_narrow';
+  const netImage = r.priorCond === 1 ? 'detector_wide' : 'detector_narrow';   // the fish detector's reading
   const priorSD = r.priorCond === 1 ? wideSD : narrowSD;
   const priorRadius = 2 * priorSD;   // circle radius = 2 SDs: about 86% of fish come up inside it
   // the net moves around: everything in the trial list is relative to the net centre (netX, netY)
@@ -441,15 +445,40 @@ function trial() {
   row.realX = realX;   // screen positions (net position included)
   row.realY = realY;
 
+  // Each cast: the detector sits at the top of the pond. Tap to scan -> it beeps (stronger beep for a
+  // small reading), the reading grows in on the water, then the splashes appear and they tap their guess.
+  let scanAt = null, splashed = false;
+  const scanTime = 0.6;   // seconds for the reading to appear; splashes come after it
   setScreen({
-    begin() { playSound('splash'); },
-    draw() {
+    draw(t) {
       drawPond();
-      drawImg(netImage, netX, netY, priorRadius * 2, priorRadius * 2);   // whole net, faded edge included = 2 SD
-      for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
+      drawImg('detector_device', 0, DEVICE_Y, DEVICE_W, DEVICE_H);
+      if (scanAt === null) {
+        if (t >= minDuration) drawText('Tap to scan', 0, DEVICE_Y - DEVICE_H / 2 - 0.035, 0.035, DARK, true);
+      } else {
+        const k = Math.min(1, (t - scanAt) / scanTime), ease = 1 - Math.pow(1 - k, 3);
+        ctx.globalAlpha = ease;
+        drawImg(netImage, netX, netY, priorRadius * 2 * (0.4 + 0.6 * ease), priorRadius * 2 * (0.4 + 0.6 * ease));
+        ctx.globalAlpha = 1;
+        if (k < 1) {   // a signal ring pulsing out from the reading
+          ctx.strokeStyle = `rgba(239, 61, 100, ${1 - k})`; ctx.lineWidth = unit * 0.006;
+          ctx.beginPath(); ctx.arc(cx + netX * unit, cy - netY * unit, priorRadius * unit * (0.5 + 0.8 * k), 0, 7); ctx.stroke();
+        }
+        if (k >= 1) {
+          if (!splashed) { splashed = true; playSound('splash'); }
+          for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
+        }
+      }
       drawImg(S.basket, 0, basketY(), basketW, basketH);
     },
     tap(x, y, t) {
+      if (scanAt === null) {   // first tap: scan
+        if (t < minDuration) return;
+        scanAt = t; row.scanRT = t;
+        playSound(r.priorCond === 1 ? 'beep_weak' : 'beep_strong');
+        return;
+      }
+      t = t - scanAt - scanTime;   // time since the splashes appeared
       if (t < minDuration) return;
       const respDist = Math.hypot(x - realX, y - realY);
       let fishLevel;
@@ -493,7 +522,7 @@ function catchFeedback(fishLevel, respX, respY) {
       }
       drawImg(fishImage, 0, fishY, 0.3 * fishSize * fishScale, 0.18 * fishSize * fishScale, alpha);
       drawImg(S.basket, 0, basketY(), basketW, basketH);
-      drawCircle(respX, respY, 0.01, 'red');
+      drawImg('net_narrow', respX, respY, THROW_NET, THROW_NET);   // the net they threw, where they tapped
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
     },
@@ -694,7 +723,7 @@ const COLUMNS = [
   'participant', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
   'priorCond', 'likeCond', 'inRing', 'netSpot', 'netX', 'netY', 'basket',
   'splash1X', 'splash1Y', 'splash2X', 'splash2Y', 'splash3X', 'splash3Y', 'splash4X', 'splash4Y', 'splash5X', 'splash5Y',
-  'splashMeanX', 'splashMeanY', 'realX', 'realY', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
+  'splashMeanX', 'splashMeanY', 'realX', 'realY', 'scanRT', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
   'fishLevel', 'totalPoints', 'fishImage', 'playerPicked',
   'extraRound', 'roundScore', 'bestRound', 'choice',
   'screenW', 'screenH', 'unitPx',
