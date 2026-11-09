@@ -57,10 +57,10 @@ const WINDOW_BG = 'rgb(70, 128, 179)'; // PsychoPy window colour [-0.45, 0, 0.4]
 
 // the fish detector at the top of the pond (picture is 629 x 720)
 const THROW_NET = 0.1;   // size of the thrown net on the catch screen
-const DEVICE_H = 0.1, DEVICE_W = DEVICE_H * 629 / 720, DEVICE_Y = 0.445;
+const DEVICE_H = 0.13 * 610 / 720, DEVICE_W = DEVICE_H * 629 / 610, DEVICE_Y = 0.497 - DEVICE_H / 2;   // detector (short antenna), at the top edge above the water
 const IMAGE_NAMES = [
   'detector_wide', 'detector_narrow', 'detector_device',
-  'pond', 'net_cast', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
+  'pond', 'net_narrow', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
   '1_1', '1_2', '1_3', '1_4', '2_1', '2_2', '2_3', '3_1', '3_2', '4_1',
   'how_step1', 'how_step2', 'how_step3', 'how_step4',
   'lb_panel', 'pick_panel',
@@ -149,7 +149,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v46';
+const APP_VERSION = 'v48';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -452,7 +452,6 @@ function trial() {
   setScreen({
     draw(t) {
       drawPond();
-      drawImg('detector_device', 0, DEVICE_Y, DEVICE_W, DEVICE_H);
       if (scanAt === null) {
         if (t >= minDuration) drawText('Tap to scan', 0, DEVICE_Y - DEVICE_H / 2 - 0.035, 0.035, DARK, true);
       } else {
@@ -469,6 +468,7 @@ function trial() {
           for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
         }
       }
+      drawImg('detector_device', 0, DEVICE_Y, DEVICE_W, DEVICE_H);   // drawn last so a big reading never covers it
       drawImg(S.basket, 0, basketY(), basketW, basketH);
     },
     tap(x, y, t) {
@@ -522,7 +522,7 @@ function catchFeedback(fishLevel, respX, respY) {
       }
       drawImg(fishImage, 0, fishY, 0.3 * fishSize * fishScale, 0.18 * fishSize * fishScale, alpha);
       drawImg(S.basket, 0, basketY(), basketW, basketH);
-      drawImg('net_cast', respX, respY, THROW_NET, THROW_NET);   // the net they threw, where they tapped
+      drawCircle(respX, respY, 0.01, 'red');   // where they tapped
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
     },
