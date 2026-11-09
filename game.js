@@ -57,7 +57,9 @@ const WINDOW_BG = 'rgb(70, 128, 179)'; // PsychoPy window colour [-0.45, 0, 0.4]
 
 // the fish detector at the top of the pond (picture is 629 x 720)
 const THROW_NET = 0.1;   // size of the thrown net on the catch screen
-const DEVICE_H = 0.13 * 610 / 720, DEVICE_W = DEVICE_H * 629 / 610, DEVICE_Y = 0.497 - DEVICE_H / 2;   // detector (short antenna), at the top edge above the water
+const DEVICE_SCALE = 1.3;   // detector size (1 = the original size)
+const DEVICE_H = 0.1 * DEVICE_SCALE * 610 / 720, DEVICE_W = DEVICE_H * 629 / 610;
+function deviceY() { return cy / unit - DEVICE_H / 2 - 0.004; }   // detector flush with the top of the screen, above the water
 const IMAGE_NAMES = [
   'detector_wide', 'detector_narrow', 'detector_device',
   'pond', 'net_narrow', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
@@ -149,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v49';
+const APP_VERSION = 'v50';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -453,7 +455,7 @@ function trial() {
     draw(t) {
       drawPond();
       if (scanAt === null) {
-        if (t >= minDuration) drawText('Tap to scan', 0, DEVICE_Y - DEVICE_H / 2 - 0.035, 0.035, DARK, true);
+        if (t >= minDuration) drawText('Tap to scan', 0, deviceY() - DEVICE_H / 2 - 0.035, 0.035, DARK, true);
       } else {
         const k = Math.min(1, (t - scanAt) / scanTime), ease = 1 - Math.pow(1 - k, 3);
         ctx.globalAlpha = ease;
@@ -468,7 +470,7 @@ function trial() {
           for (let i = 0; i < numSplashes; i++) drawImg('splash', splashX[i], splashY[i], 0.06, 0.06);
         }
       }
-      drawImg('detector_device', 0, DEVICE_Y, DEVICE_W, DEVICE_H);   // drawn last so a big reading never covers it
+      drawImg('detector_device', 0, deviceY(), DEVICE_W, DEVICE_H);   // drawn last so a big reading never covers it
       drawImg(S.basket, 0, basketY(), basketW, basketH);
     },
     tap(x, y, t) {
