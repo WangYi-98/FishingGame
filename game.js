@@ -60,7 +60,7 @@ const THROW_NET = 0.1;   // size of the thrown net on the catch screen
 const DEVICE_H = 0.1, DEVICE_W = DEVICE_H * 629 / 720, DEVICE_Y = 0.445;
 const IMAGE_NAMES = [
   'detector_wide', 'detector_narrow', 'detector_device',
-  'pond', 'net_narrow', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
+  'pond', 'net_cast', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
   '1_1', '1_2', '1_3', '1_4', '2_1', '2_2', '2_3', '3_1', '3_2', '4_1',
   'how_step1', 'how_step2', 'how_step3', 'how_step4',
   'lb_panel', 'pick_panel',
@@ -149,7 +149,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v44';
+const APP_VERSION = 'v46';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -522,7 +522,7 @@ function catchFeedback(fishLevel, respX, respY) {
       }
       drawImg(fishImage, 0, fishY, 0.3 * fishSize * fishScale, 0.18 * fishSize * fishScale, alpha);
       drawImg(S.basket, 0, basketY(), basketW, basketH);
-      drawImg('net_narrow', respX, respY, THROW_NET, THROW_NET);   // the net they threw, where they tapped
+      drawImg('net_cast', respX, respY, THROW_NET, THROW_NET);   // the net they threw, where they tapped
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
     },
