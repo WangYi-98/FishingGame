@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v50';
+const APP_VERSION = 'v51';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -447,16 +447,16 @@ function trial() {
   row.realX = realX;   // screen positions (net position included)
   row.realY = realY;
 
-  // Each cast: the detector sits at the top of the pond. Tap to scan -> it beeps (stronger beep for a
-  // small reading), the reading grows in on the water, then the splashes appear and they tap their guess.
-  let scanAt = null, splashed = false;
-  const scanTime = 0.6;   // seconds for the reading to appear; splashes come after it
+  // Each cast: the detector sits at the top of the pond and scans by itself after scanDelay -> it beeps
+  // (stronger beep for a small reading), the reading grows in on the water, then the splashes appear and
+  // they tap their guess.
+  const scanAt = 0.4, scanTime = 0.6;   // seconds before the scan starts; seconds for the reading to appear
+  let beeped = false, splashed = false;
   setScreen({
     draw(t) {
       drawPond();
-      if (scanAt === null) {
-        if (t >= minDuration) drawText('Tap to scan', 0, deviceY() - DEVICE_H / 2 - 0.035, 0.035, DARK, true);
-      } else {
+      if (t >= scanAt) {
+        if (!beeped) { beeped = true; playSound(r.priorCond === 1 ? 'beep_weak' : 'beep_strong'); }
         const k = Math.min(1, (t - scanAt) / scanTime), ease = 1 - Math.pow(1 - k, 3);
         ctx.globalAlpha = ease;
         drawImg(netImage, netX, netY, priorRadius * 2 * (0.4 + 0.6 * ease), priorRadius * 2 * (0.4 + 0.6 * ease));
@@ -474,12 +474,6 @@ function trial() {
       drawImg(S.basket, 0, basketY(), basketW, basketH);
     },
     tap(x, y, t) {
-      if (scanAt === null) {   // first tap: scan
-        if (t < minDuration) return;
-        scanAt = t; row.scanRT = t;
-        playSound(r.priorCond === 1 ? 'beep_weak' : 'beep_strong');
-        return;
-      }
       t = t - scanAt - scanTime;   // time since the splashes appeared
       if (t < minDuration) return;
       const respDist = Math.hypot(x - realX, y - realY);
@@ -503,6 +497,7 @@ function trial() {
 function catchFeedback(fishLevel, respX, respY) {
   const fishImage = pick(fishPics[fishLevel]);
   const catchMsg = levelWords[fishLevel] + ' fish!';
+  const nextMsg = roundEnd(S.thisN) ? 'Tap to continue' : 'Tap to scan again';   // last cast of a round goes to the round screen
   S.row.fishImage = 'images/' + fishImage + '.png';
   S.blockFish.push(fishImage);
   S.blockLevels.push(fishLevel);
@@ -526,7 +521,7 @@ function catchFeedback(fishLevel, respX, respY) {
       drawImg(S.basket, 0, basketY(), basketW, basketH);
       drawCircle(respX, respY, 0.01, 'red');   // where they tapped
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
-      if (t >= 1.8) drawText('Tap for next cast', 0, 0.32, 0.03, DARK);
+      if (t >= 1.8) drawText(nextMsg, 0, 0.32, 0.03, DARK);
     },
     tap(x, y, t) { if (t >= 1.8) { playSound('pop'); afterCatch(); } },
   });
@@ -725,7 +720,7 @@ const COLUMNS = [
   'participant', 'date', 'expName', 'trialNum', 'roundNum', 'practice', 'trialID',
   'priorCond', 'likeCond', 'inRing', 'netSpot', 'netX', 'netY', 'basket',
   'splash1X', 'splash1Y', 'splash2X', 'splash2Y', 'splash3X', 'splash3Y', 'splash4X', 'splash4Y', 'splash5X', 'splash5Y',
-  'splashMeanX', 'splashMeanY', 'realX', 'realY', 'scanRT', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
+  'splashMeanX', 'splashMeanY', 'realX', 'realY', 'respX', 'respY', 'rt', 'timedOut', 'respDist', 'respDistPx',
   'fishLevel', 'totalPoints', 'fishImage', 'playerPicked',
   'extraRound', 'roundScore', 'bestRound', 'choice',
   'screenW', 'screenH', 'unitPx',
