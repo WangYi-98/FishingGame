@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v69';
+const APP_VERSION = 'v70';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -238,10 +238,17 @@ function drawCover(name) {
   const w = im.width * s, h = im.height * s;
   ctx.drawImage(im, (screenW - w) / 2, (screenH - h) / 2, w, h);
 }
+const POND_SIDE_W = 2120;   // pond.png's water between the side banks is about this wide (of 2560 px)
 function drawPond() {
   ctx.fillStyle = WINDOW_BG;
   ctx.fillRect(0, 0, screenW, screenH);
-  drawCover('pond');
+  // like drawCover, but on a screen wider than usual (e.g. Safari with its toolbar) the pond is stretched a
+  // little sideways so the side banks stay off the screen while the top and bottom banks stay on it;
+  // on a normal iPad screen this changes nothing
+  const im = IMG.pond; if (!im) return;
+  const s = Math.max(screenW / im.width, screenH / im.height);
+  const w = im.width * Math.max(s, screenW / POND_SIDE_W), h = im.height * s;
+  ctx.drawImage(im, (screenW - w) / 2, (screenH - h) / 2, w, h);
 }
 
 // ---------------------------------------------------------------- screens
