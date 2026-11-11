@@ -64,7 +64,7 @@ const IMAGE_NAMES = [
   'detector_wide', 'detector_narrow', 'detector_device',
   'pond', 'net_narrow', 'splash', 'basket_brown', 'basket_orange', 'basket_blue',
   '1_1', '1_2', '1_3', '1_4', '2_1', '2_2', '2_3', '3_1', '3_2', '4_1',
-  'how_step1', 'how_step2', 'how_step3', 'how_step4',
+  'how_step1', 'how_step2', 'how_step3', 'how_step4', 'how_qmark',
   'lb_panel', 'pick_panel',
   ...playerPics,
 ];
@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v58';
+const APP_VERSION = 'v69';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -351,9 +351,84 @@ function startGame() {
   howPage(0);
 }
 
+// Animated parts of the How to play pages, in page pixels (the pages are 1920 x 1080):
+// page 1 question marks pop up one by one; page 2 a fish swims around, leaves the splashes and dives.
+const HOW_ANIM = {"reading": [960, 500, 336.6], "device": [960, 279.25, 104, 101], "qmarks": [[871.5, 435.6, 53.6], [1016.4, 411.4, 47.2], [1056.6, 548.3, 53.6], [919.8, 572.5, 47.2], [968.0, 496.8, 53.6]], "splashes": [[1056.2, 391.2], [1126.2, 443.8], [1184.0, 365.0], [1082.5, 505.0], [1166.5, 531.2]], "splashSize": 73.5, "tile": [662.5, 216.25, 595.0, 507.5, 36]};
+function pageXY(px, py) {   // page pixels -> screen pixels (the page covers the screen, like drawCover)
+  const im = IMG.how_step1, s = Math.max(screenW / im.width, screenH / im.height);
+  return [(screenW - im.width * s) / 2 + px * s, (screenH - im.height * s) / 2 + py * s, s];
+}
+function popIn(t) { return t <= 0 ? 0 : Math.min(1, t / 0.25); }   // 0 -> 1 over a quarter second
+function drawSprite(name, px, py, w, h, a = 1, flip = false, angle = 0) {
+  const im = IMG[name]; if (!im || a <= 0) return;
+  const [x, y, s] = pageXY(px, py);
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.rotate(angle); if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(im, -w * s / 2, -h * s / 2, w * s, h * s); ctx.restore();
+}
+function howQmarks(t) {   // page 1: the hidden fish could be anywhere (question marks show one at a time; the
+  // last one, in the centre, stays), then the detector appears and scans (beep, circles grow in)
+  const step = 0.7, n = HOW_ANIM.qmarks.length, im = IMG.how_qmark;
+  const tCentre = 0.5 + step * (n - 1), tDevice = tCentre + 0.8, tScan = tDevice + 0.6;
+  const [dx, dy, dw, dh] = HOW_ANIM.device, [rx, ry, rd] = HOW_ANIM.reading;
+  if (t >= tScan) {   // circles grow in, like the scan in the game
+    if (!howBeeped) { howBeeped = true; playSound('beep_weak'); }
+    const k = Math.min(1, (t - tScan) / 0.6), e = 1 - Math.pow(1 - k, 3);
+    drawSprite('detector_wide', rx, ry, rd * (0.4 + 0.6 * e), rd * (0.4 + 0.6 * e), e);
+  }
+  const qd = popIn(t - tDevice);
+  if (qd > 0) drawSprite('detector_device', dx, dy, dw * (0.7 + 0.3 * qd), dh * (0.7 + 0.3 * qd), qd);
+  HOW_ANIM.qmarks.forEach(([px, py, size], k) => {
+    const central = k === n - 1, t0 = central ? tCentre : 0.5 + step * k, q = popIn(t - t0); if (q <= 0) return;
+    const out = central ? 1 : Math.max(0, Math.min(1, (t0 + step + 0.2 - t) / 0.2));   // fades out while the next one comes in
+    if (out <= 0) return;
+    const sc = size / 100 * (0.6 + 0.4 * q);
+    drawSprite('how_qmark', px, py, im.width * sc, im.height * sc, q * out);
+  });
+}
+let howBeeped = false;
+const HOW_FISH = (() => {   // page 2: the fish's path
+  // it comes up at the top-right splash, passes the other splashes (each pops up as it arrives), then from
+  // the splash closest to the circles' centre swims towards the centre and fades away before getting there
+  const sp = HOW_ANIM.splashes, [tx, ty, tw, th] = HOW_ANIM.tile;
+  const order = [2, 1, 4, 3, 0];   // splash 2 = top right; splash 0 = closest to the centre
+  const cX = tx + tw / 2, cY = ty + th / 2, last = sp[order[order.length - 1]];
+  const pts = [...order.map(i => sp[i]), [last[0] + 0.6 * (cX - last[0]), last[1] + 0.6 * (cY - last[1])]];
+  const seg = [], speed = 300;   // page pixels per second
+  let T = 0.6;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push([T, d / speed]); T += d / speed; }
+  return { pts, seg, order, end: T };
+})();
+function howFish(t) {
+  const { pts, seg, order, end } = HOW_FISH, [tx, ty, tw, th, rad] = HOW_ANIM.tile, size = HOW_ANIM.splashSize;
+  const [x0, y0, s] = pageXY(tx, ty);
+  ctx.save(); ctx.beginPath(); ctx.roundRect(x0, y0, tw * s, th * s, rad * s); ctx.clip();   // stay inside the picture
+  // splashes: the first as the fish comes up, the rest as the fish reaches them
+  order.forEach((i, k) => {
+    const q = popIn(t - (k === 0 ? seg[0][0] : seg[k - 1][0] + seg[k - 1][1]));
+    if (q > 0) drawSprite('splash', HOW_ANIM.splashes[i][0], HOW_ANIM.splashes[i][1], size * (0.5 + 0.5 * q), size * (0.5 + 0.5 * q), q);
+  });
+  // the fish: fades in at the first splash, swims along the path, fades out on the last stretch
+  if (t >= 0.3 && t < end) {
+    let k = seg.findIndex(([a, d]) => t < a + d); if (k < 0) k = seg.length - 1;
+    const [a, d] = seg[k], f = Math.max(0, Math.min(1, (t - a) / d));
+    const lastLeg = k === seg.length - 1, e = lastLeg ? f : f * f * (3 - 2 * f);   // keeps moving as it fades
+    const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
+    const x = ax + (bx - ax) * e, y = ay + (by - ay) * e + Math.sin(t * 9) * 2;
+    const appear = Math.min(1, (t - 0.3) / 0.3), fade = lastLeg ? 1 - f : 1;
+    const flip = bx < ax, ang = Math.max(-0.5, Math.min(0.5, Math.atan2(by - ay, Math.abs(bx - ax)))) * (flip ? -1 : 1);
+    drawSprite('4_1', x, y, 160, 96, 0.95 * appear * fade, flip, ang);   // the Amazing fish (4_1.png has margins: the fish itself is about 86 page px)
+  }
+  ctx.restore();
+}
+
 function howPage(i) {
+  howBeeped = false;
   setScreen({
-    draw() { drawCover('how_step' + (i + 1)); },   // whole page (with its own pond) fills the screen
+    draw(t) {
+      drawCover('how_step' + (i + 1));   // whole page (with its own pond) fills the screen
+      if (i === 0) howQmarks(t);
+      if (i === 1) howFish(t);
+    },
     tap(x, y, t) {
       if (t < 0.5) return;
       playSound('pop');
