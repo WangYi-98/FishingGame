@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v54';
+const APP_VERSION = 'v57';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
@@ -452,6 +452,8 @@ function trial() {
   // they tap their guess.
   const scanAt = 0.4, scanTime = 0.6;   // seconds before the scan starts; seconds for the reading to appear
   let beeped = false, splashed = false;
+  const dotTime = 0.5;   // seconds the red dot shows where they tapped, before the fish comes up
+  let tapped = null, tapX = 0, tapY = 0, fishLevel = 1, done = false;
   setScreen({
     draw(t) {
       drawPond();
@@ -472,12 +474,17 @@ function trial() {
       }
       drawImg('detector_device', 0, deviceY(), DEVICE_W, DEVICE_H);   // drawn last so a big reading never covers it
       drawImg(S.basket, 0, basketY(), basketW, basketH);
+      if (tapped !== null) {
+        drawCircle(tapX, tapY, 0.01, 'red');   // where they tapped
+        if (!done && t >= tapped + dotTime) { done = true; catchFeedback(fishLevel, tapX, tapY); }
+      }
     },
     tap(x, y, t) {
+      if (tapped !== null) return;   // already answered
+      const tNow = t;
       t = t - scanAt - scanTime;   // time since the splashes appeared
       if (t < minDuration) return;
       const respDist = Math.hypot(x - realX, y - realY);
-      let fishLevel;
       if (respDist <= level4Dist) fishLevel = 4;
       else if (respDist <= level3Dist) fishLevel = 3;
       else if (respDist <= level2Dist) fishLevel = 2;
@@ -488,7 +495,7 @@ function trial() {
         respDist, respDistPx: respDist / pxToHeight,
         fishLevel, totalPoints: S.totalPoints,
       });
-      catchFeedback(fishLevel, x, y);
+      tapped = tNow; tapX = x; tapY = y;   // red dot for dotTime, then the catch screen
     },
   });
 }
@@ -519,7 +526,6 @@ function catchFeedback(fishLevel, respX, respY) {
       }
       drawImg(fishImage, 0, fishY, 0.3 * fishSize * fishScale, 0.18 * fishSize * fishScale, alpha);
       drawImg(S.basket, 0, basketY(), basketW, basketH);
-      drawCircle(respX, respY, 0.01, 'red');   // where they tapped
       drawText(catchMsg, 0, 0.42, 0.05, DARK);
       if (t >= 1.8) drawText(nextMsg, 0, 0.32, 0.03, DARK);
     },
