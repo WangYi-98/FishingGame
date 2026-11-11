@@ -151,7 +151,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let unit = 1, cx = 0, cy = 0;
 
-const APP_VERSION = 'v52';
+const APP_VERSION = 'v53';
 let screenW = 0, screenH = 0, diagText = '';
 // true when opened from the Home Screen icon
 const homeScreen = window.navigator.standalone === true ||
