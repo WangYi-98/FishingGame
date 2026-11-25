@@ -8,10 +8,10 @@ The iPad has to download the game once from an https web address. Any static web
 
 GitHub Pages
 
-Create a GitHub account and a new repository (e.g. fishing-game).
+Create a GitHub account and a new repository (e.g. FishingGame).
 Upload everything in this folder (keep the images and icons folders).
 In the repository: Settings → Pages → Branch: main → Save.
-After a minute the game is at https://<your-username>.github.io/fishing-game/.
+After a minute the game is at https://<your-username>.github.io/FishingGame/.
 
 Netlify Drop: drag this whole folder onto https://app.netlify.com/drop and you get an https address.
 
